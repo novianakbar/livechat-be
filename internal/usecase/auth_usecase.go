@@ -1,0 +1,203 @@
+package usecase
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/novianakbar/livechat-be/internal/domain"
+	"github.com/novianakbar/livechat-be/pkg/utils"
+)
+
+type AuthUsecase struct {
+	userRepo domain.UserRepository
+	jwtUtil  *utils.JWTUtil
+}
+
+func NewAuthUsecase(userRepo domain.UserRepository, jwtUtil *utils.JWTUtil) *AuthUsecase {
+	return &AuthUsecase{
+		userRepo: userRepo,
+		jwtUtil:  jwtUtil,
+	}
+}
+
+func (uc *AuthUsecase) Login(ctx context.Context, req *domain.LoginRequest, clientIP, userAgent string) (*domain.LoginResponse, error) {
+	// TODO: Implement rate limiting based on clientIP and userAgent
+
+	// Find user by email
+	user, err := uc.userRepo.GetByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	if user == nil {
+		return nil, errors.New("invalid email or password")
+	}
+
+	// Check if user is active
+	if !user.IsActive {
+		return nil, errors.New("user account is inactive")
+	}
+
+	// Verify password
+	if !utils.CheckPasswordHash(req.Password, user.Password) {
+		return nil, errors.New("invalid email or password")
+	}
+
+	// Generate JWT token pair
+	tokenPair, err := uc.jwtUtil.GenerateTokenPair(user.ID, user.Email, user.Role, user.DepartmentID)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Store session info in Redis/database for revocation support
+
+	// Hide password from response
+	user.Password = ""
+
+	return &domain.LoginResponse{
+		AccessToken:  tokenPair.AccessToken,
+		RefreshToken: tokenPair.RefreshToken,
+		ExpiresIn:    tokenPair.ExpiresIn,
+		ExpiresAt:    tokenPair.ExpiresAt,
+		User:         user,
+	}, nil
+}
+
+func (uc *AuthUsecase) Logout(ctx context.Context, userID uuid.UUID, accessToken, refreshToken string) error {
+	// TODO: Implement token blacklisting
+	// For now, we'll just validate that the tokens exist and are from the right user
+
+	if accessToken != "" {
+		claims, err := uc.jwtUtil.ValidateAccessToken(accessToken)
+		if err == nil && claims.UserID == userID {
+			// TODO: Add token to blacklist in Redis
+		}
+	}
+
+	if refreshToken != "" {
+		claims, err := uc.jwtUtil.ValidateRefreshToken(refreshToken)
+		if err == nil && claims.UserID == userID {
+			// TODO: Add token to blacklist in Redis
+		}
+	}
+
+	return nil
+}
+
+func (uc *AuthUsecase) Register(ctx context.Context, req *domain.RegisterRequest) (*domain.User, error) {
+	// Check if user already exists
+	existingUser, err := uc.userRepo.GetByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	if existingUser != nil {
+		return nil, errors.New("user with this email already exists")
+	}
+
+	// Hash password
+	hashedPassword, err := utils.HashPassword(req.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create user
+	user := &domain.User{
+		ID:           uuid.New(),
+		Email:        req.Email,
+		Password:     hashedPassword,
+		Name:         req.Name,
+		Role:         req.Role,
+		IsActive:     true,
+		DepartmentID: req.DepartmentID,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	if err := uc.userRepo.Create(ctx, user); err != nil {
+		return nil, err
+	}
+
+	// Hide password from response
+	user.Password = ""
+
+	return user, nil
+}
+
+func (uc *AuthUsecase) GetUserByID(ctx context.Context, userID uuid.UUID) (*domain.User, error) {
+	user, err := uc.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Hide password from response
+	user.Password = ""
+
+	return user, nil
+}
+
+func (uc *AuthUsecase) RefreshToken(ctx context.Context, req *domain.RefreshTokenRequest) (*domain.RefreshTokenResponse, error) {
+	// Validate refresh token
+	claims, err := uc.jwtUtil.ValidateRefreshToken(req.RefreshToken)
+	if err != nil {
+		return nil, errors.New("invalid refresh token")
+	}
+
+	// Check if user still exists and is active
+	user, err := uc.userRepo.GetByID(ctx, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	if !user.IsActive {
+		return nil, errors.New("user account is inactive")
+	}
+
+	// Generate new token pair
+	tokenPair, err := uc.jwtUtil.GenerateTokenPair(user.ID, user.Email, user.Role, user.DepartmentID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.RefreshTokenResponse{
+		AccessToken:  tokenPair.AccessToken,
+		RefreshToken: tokenPair.RefreshToken,
+		ExpiresIn:    tokenPair.ExpiresIn,
+		ExpiresAt:    tokenPair.ExpiresAt,
+	}, nil
+}
+
+func (uc *AuthUsecase) ValidateToken(ctx context.Context, tokenString string) (*domain.User, error) {
+	claims, err := uc.jwtUtil.ValidateAccessToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := uc.userRepo.GetByID(ctx, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	if !user.IsActive {
+		return nil, errors.New("user account is inactive")
+	}
+
+	// Hide password from response
+	user.Password = ""
+
+	return user, nil
+}

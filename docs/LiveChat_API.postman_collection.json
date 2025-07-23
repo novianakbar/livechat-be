@@ -1,0 +1,389 @@
+{
+  "info": {
+    "name": "LiveChat OSS Perizinan Berusaha API",
+    "description": "API collection for LiveChat OSS system",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.token) {",
+                  "        pm.globals.set('jwt_token', response.data.token);",
+                  "        pm.collectionVariables.set('jwt_token', response.data.token);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@livechat.com\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newagent@livechat.com\",\n  \"password\": \"password123\",\n  \"name\": \"New Agent\",\n  \"role\": \"agent\",\n  \"department_id\": \"550e8400-e29b-41d4-a716-446655440001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public Chat",
+      "item": [
+        {
+          "name": "Start Chat Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.session_id) {",
+                  "        pm.globals.set('session_id', response.data.session_id);",
+                  "        pm.collectionVariables.set('session_id', response.data.session_id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_name\": \"PT Maju Terus\",\n  \"person_name\": \"Budi Santoso\",\n  \"email\": \"budi@majuterus.com\",\n  \"topic\": \"Perpanjangan izin usaha UMKM\",\n  \"priority\": \"normal\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/public/chat/start",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "chat", "start"]
+            }
+          }
+        },
+        {
+          "name": "Send Message (Customer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"{{session_id}}\",\n  \"message\": \"Selamat pagi, saya ingin mengurus perpanjangan izin usaha UMKM saya. Dokumen apa saja yang diperlukan?\",\n  \"message_type\": \"text\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/public/chat/message",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "chat", "message"]
+            }
+          }
+        },
+        {
+          "name": "Get Session Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/public/chat/session/{{session_id}}/messages",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "chat", "session", "{{session_id}}", "messages"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Agent Chat",
+      "item": [
+        {
+          "name": "Get Agent Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chat/agent/sessions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "agent", "sessions"]
+            }
+          }
+        },
+        {
+          "name": "Send Message (Agent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"{{session_id}}\",\n  \"message\": \"Selamat pagi Bapak Budi. Untuk perpanjangan izin usaha UMKM, diperlukan dokumen: 1) Fotokopi KTP, 2) Fotokopi NPWP, 3) Surat keterangan domisili usaha, 4) Laporan kegiatan usaha. Apakah dokumen tersebut sudah lengkap?\",\n  \"message_type\": \"text\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat/agent/message",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "agent", "message"]
+            }
+          }
+        },
+        {
+          "name": "Assign Agent to Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"{{session_id}}\",\n  \"agent_id\": \"550e8400-e29b-41d4-a716-446655440011\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat/agent/assign",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "agent", "assign"]
+            }
+          }
+        },
+        {
+          "name": "Close Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"{{session_id}}\",\n  \"reason\": \"Pertanyaan customer sudah terjawab dengan lengkap\",\n  \"rating\": 5,\n  \"feedback\": \"Customer puas dengan layanan yang diberikan\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat/agent/close",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "agent", "close"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Chat",
+      "item": [
+        {
+          "name": "Get Waiting Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chat/admin/waiting",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "admin", "waiting"]
+            }
+          }
+        },
+        {
+          "name": "Get Active Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chat/admin/active",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "admin", "active"]
+            }
+          }
+        },
+        {
+          "name": "Assign Agent (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"{{session_id}}\",\n  \"agent_id\": \"550e8400-e29b-41d4-a716-446655440011\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat/admin/assign",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "admin", "assign"]
+            }
+          }
+        },
+        {
+          "name": "Close Session (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"{{session_id}}\",\n  \"reason\": \"Session ditutup oleh admin\",\n  \"rating\": 4,\n  \"feedback\": \"Customer service completed by admin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat/admin/close",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "admin", "close"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

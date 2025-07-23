@@ -1,0 +1,81 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: livechat-postgres
+    environment:
+      POSTGRES_DB: livechat_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - livechat-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: livechat-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - livechat-network
+
+  # LiveChat API
+  livechat-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: livechat-api
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=livechat_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - JWT_SECRET=your-secret-key-here
+      - JWT_EXPIRATION=24h
+      - SERVER_PORT=8080
+      - SERVER_HOST=0.0.0.0
+      - APP_ENV=development
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - livechat-network
+    volumes:
+      - ./migrations:/app/migrations
+
+  # pgAdmin (optional - for database management)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: livechat-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@livechat.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8081:80"
+    depends_on:
+      - postgres
+    networks:
+      - livechat-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  livechat-network:
+    driver: bridge
