@@ -11,7 +11,7 @@ func NewCORSMiddleware() fiber.Handler {
 	// Get allowed origins from environment or use defaults
 	allowedOrigins := os.Getenv("CORS_ORIGINS")
 	if allowedOrigins == "" {
-		allowedOrigins = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.1:5173"
+		allowedOrigins = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.1:5173,https://oss.go.id"
 	}
 
 	return cors.New(cors.Config{
@@ -26,7 +26,7 @@ func NewCORSMiddleware() fiber.Handler {
 
 func NewDevelopmentCORSMiddleware() fiber.Handler {
 	return cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,https://localhost:3000,https://127.0.0.1:3000,http://localhost:5173,http://127.0.1:5173",
+		AllowOrigins:     "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,https://localhost:3000,https://127.0.0.1:3000,http://localhost:5173,http://127.0.1:5173,https://oss.go.id",
 		AllowMethods:     "GET,POST,PUT,DELETE,PATCH,OPTIONS,HEAD",
 		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-CSRF-Token",
 		AllowCredentials: true,

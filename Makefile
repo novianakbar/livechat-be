@@ -1,8 +1,8 @@
 # Variables
 DB_HOST ?= localhost
 DB_PORT ?= 5432
-DB_USER ?= postgres
-DB_PASSWORD ?= password
+DB_USER ?= root
+DB_PASSWORD ?= postgre123
 DB_NAME ?= livechat_db
 MIGRATE_PATH ?= ./migrations
 BINARY_NAME ?= livechat-be

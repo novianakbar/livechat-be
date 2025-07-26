@@ -17,6 +17,7 @@ type Config struct {
 	WebSocket WebSocketConfig
 	Email     EmailConfig
 	App       AppConfig
+	Kafka     KafkaConfig
 }
 
 type DatabaseConfig struct {
@@ -58,6 +59,11 @@ type EmailConfig struct {
 
 type AppConfig struct {
 	Environment string
+}
+
+type KafkaConfig struct {
+	Broker string
+	Topic  string
 }
 
 func LoadConfig() *Config {
@@ -125,6 +131,10 @@ func LoadConfig() *Config {
 		},
 		App: AppConfig{
 			Environment: getEnv("APP_ENV", "development"),
+		},
+		Kafka: KafkaConfig{
+			Broker: getEnv("KAFKA_BROKER", "localhost:9092"),
+			Topic:  getEnv("KAFKA_TOPIC", "chat-messages"),
 		},
 	}
 }

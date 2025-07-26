@@ -13,6 +13,7 @@ import (
 	"github.com/novianakbar/livechat-be/internal/infrastructure/database"
 	"github.com/novianakbar/livechat-be/internal/infrastructure/email"
 	"github.com/novianakbar/livechat-be/internal/infrastructure/repository"
+	"github.com/novianakbar/livechat-be/internal/service"
 	"github.com/novianakbar/livechat-be/internal/usecase"
 	"github.com/novianakbar/livechat-be/pkg/config"
 	"github.com/novianakbar/livechat-be/pkg/utils"
@@ -51,15 +52,16 @@ func main() {
 
 	// Initialize email service
 	emailService := email.NewSendGridService(&cfg.Email)
-	emailUsecase := usecase.NewEmailUseCase(emailService)
+
+	// Initialize Kafka service
+	kafkaService := service.NewKafkaService()
 
 	// Initialize handlers
-	wsHandler := handler.NewWebSocketHandler(chatUsecase)
 	authHandler := handler.NewAuthHandler(authUsecase)
-	chatHandler := handler.NewChatHandler(chatUsecase, wsHandler)
+	chatHandler := handler.NewChatHandler(chatUsecase, kafkaService)
 	analyticsHandler := handler.NewAnalyticsHandler(analyticsUsecase)
 	userHandler := handler.NewUserHandler(userUsecase)
-	emailHandler := handler.NewEmailHandler(emailUsecase)
+	emailHandler := handler.NewEmailHandler(emailService)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authUsecase)
@@ -85,15 +87,15 @@ func main() {
 
 	// CORS middleware - Allow localhost:3000 for development
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.1:5173",
+		AllowOrigins:     "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.1:5173,https://oss.go.id",
 		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
 		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With",
 		AllowCredentials: true,
 		ExposeHeaders:    "Content-Length,Authorization",
 	}))
 
-	// Setup routes
-	routes.SetupRoutes(app, authHandler, chatHandler, wsHandler, analyticsHandler, userHandler, emailHandler, authMiddleware)
+	// Setup routes (tanpa wsHandler)
+	routes.SetupRoutes(app, authHandler, chatHandler, analyticsHandler, userHandler, emailHandler, authMiddleware)
 
 	// Start server
 	serverAddr := cfg.Server.Host + ":" + cfg.Server.Port

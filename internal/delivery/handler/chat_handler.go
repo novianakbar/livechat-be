@@ -1,22 +1,28 @@
 package handler
 
 import (
+	"log"
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/novianakbar/livechat-be/internal/delivery/middleware"
 	"github.com/novianakbar/livechat-be/internal/domain"
+	"github.com/novianakbar/livechat-be/internal/service"
 	"github.com/novianakbar/livechat-be/internal/usecase"
 )
 
+// ChatHandler handles chat-related endpoints.
 type ChatHandler struct {
-	chatUsecase *usecase.ChatUsecase
-	wsHandler   *WebSocketHandler
+	chatUsecase  *usecase.ChatUsecase
+	kafkaService *service.KafkaService
 }
 
-func NewChatHandler(chatUsecase *usecase.ChatUsecase, wsHandler *WebSocketHandler) *ChatHandler {
+// NewChatHandler creates a new ChatHandler.
+func NewChatHandler(chatUsecase *usecase.ChatUsecase, kafkaService *service.KafkaService) *ChatHandler {
 	return &ChatHandler{
-		chatUsecase: chatUsecase,
-		wsHandler:   wsHandler,
+		chatUsecase:  chatUsecase,
+		kafkaService: kafkaService,
 	}
 }
 
@@ -117,9 +123,46 @@ func (h *ChatHandler) SendMessage(c *fiber.Ctx) error {
 
 	// Get the message from the database to broadcast via WebSocket
 	message, err := h.chatUsecase.GetMessageByID(c.Context(), response.MessageID)
-	if err == nil && message != nil && h.wsHandler != nil {
-		// Broadcast the message to all clients in the session
-		h.wsHandler.BroadcastMessage(req.SessionID, message)
+	// Hapus broadcast langsung ke WebSocket, hanya publish ke Kafka
+	// if err == nil && message != nil && h.wsHandler != nil {
+	// 	h.wsHandler.BroadcastMessage(req.SessionID, message)
+	// }
+
+	// Publish message to Kafka
+	if h.kafkaService != nil && message != nil {
+		// Create a clean message object without GORM associations for Kafka
+		kafkaMessage := struct {
+			ID          uuid.UUID  `json:"id"`
+			SessionID   uuid.UUID  `json:"session_id"`
+			SenderID    *uuid.UUID `json:"sender_id"`
+			SenderType  string     `json:"sender_type"`
+			Message     string     `json:"message"`
+			MessageType string     `json:"message_type"`
+			Attachments []string   `json:"attachments"`
+			ReadAt      *time.Time `json:"read_at"`
+			CreatedAt   time.Time  `json:"created_at"`
+			UpdatedAt   time.Time  `json:"updated_at"`
+		}{
+			ID:          message.ID,
+			SessionID:   message.SessionID,
+			SenderID:    message.SenderID,
+			SenderType:  message.SenderType,
+			Message:     message.Message,
+			MessageType: message.MessageType,
+			Attachments: message.Attachments,
+			ReadAt:      message.ReadAt,
+			CreatedAt:   message.CreatedAt,
+			UpdatedAt:   message.UpdatedAt,
+		}
+
+		log.Printf("Publishing message to Kafka: ID=%s, SessionID=%s, SenderType=%s, Message=%s",
+			kafkaMessage.ID, kafkaMessage.SessionID, kafkaMessage.SenderType, kafkaMessage.Message)
+		if err := h.kafkaService.PublishMessage(c.Context(), kafkaMessage); err != nil {
+			// Log error, tapi tidak broadcast langsung
+			log.Printf("Failed to publish message to Kafka: %v", err)
+		} else {
+			log.Printf("Successfully published message to Kafka")
+		}
 	}
 
 	return c.JSON(domain.ApiResponse{
@@ -490,7 +533,7 @@ func (h *ChatHandler) GetSession(c *fiber.Ctx) error {
 
 // GetSessionConnectionStatus godoc
 // @Summary Get session connection status
-// @Description Get connection status of clients in a chat session
+// @Description Get connection status of clients in a chat session (now handled by WebSocket service)
 // @Tags Chat
 // @Accept json
 // @Produce json
@@ -500,7 +543,7 @@ func (h *ChatHandler) GetSession(c *fiber.Ctx) error {
 // @Router /api/chat/sessions/{id}/connection-status [get]
 func (h *ChatHandler) GetSessionConnectionStatus(c *fiber.Ctx) error {
 	sessionIDStr := c.Params("id")
-	sessionID, err := uuid.Parse(sessionIDStr)
+	_, err := uuid.Parse(sessionIDStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
 			Success: false,
@@ -509,11 +552,14 @@ func (h *ChatHandler) GetSessionConnectionStatus(c *fiber.Ctx) error {
 		})
 	}
 
-	status := h.wsHandler.GetSessionConnectedClients(sessionID)
-
+	// Connection status is now handled by the WebSocket service (livechat-ws)
+	// This endpoint returns a placeholder response
 	return c.JSON(domain.ApiResponse{
 		Success: true,
-		Message: "Connection status retrieved successfully",
-		Data:    status,
+		Message: "Connection status is handled by WebSocket service. Please connect to /ws endpoint.",
+		Data: map[string]interface{}{
+			"note":               "Connection status is managed by the WebSocket service (livechat-ws)",
+			"websocket_endpoint": "/ws",
+		},
 	})
 }

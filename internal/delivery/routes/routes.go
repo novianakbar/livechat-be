@@ -2,7 +2,6 @@ package routes
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/websocket/v2"
 	"github.com/novianakbar/livechat-be/internal/delivery/handler"
 	"github.com/novianakbar/livechat-be/internal/delivery/middleware"
 )
@@ -11,7 +10,6 @@ func SetupRoutes(
 	app *fiber.App,
 	authHandler *handler.AuthHandler,
 	chatHandler *handler.ChatHandler,
-	wsHandler *handler.WebSocketHandler,
 	analyticsHandler *handler.AnalyticsHandler,
 	userHandler *handler.UserHandler,
 	emailHandler *handler.EmailHandler,
@@ -79,19 +77,6 @@ func SetupRoutes(
 	users.Get("/", userHandler.GetUsers)
 	users.Get("/agents", userHandler.GetAgents)
 	users.Get("/:id", userHandler.GetUser)
-
-	// WebSocket routes
-	app.Use("/ws", func(c *fiber.Ctx) error {
-		// IsWebSocketUpgrade returns true if the client
-		// requested upgrade to the WebSocket protocol.
-		if websocket.IsWebSocketUpgrade(c) {
-			c.Locals("allowed", true)
-			return c.Next()
-		}
-		return fiber.ErrUpgradeRequired
-	})
-
-	app.Get("/ws/chat", websocket.New(wsHandler.HandleConnection))
 
 	// Analytics routes
 	analytics := api.Group("/analytics")
