@@ -51,19 +51,75 @@ type UpdateDepartmentRequest struct {
 	IsActive    bool   `json:"is_active"`
 }
 
-// Chat Session DTOs
+// Chat Session DTOs for OSS System
 type StartChatRequest struct {
-	CompanyName string `json:"company_name" validate:"required"`
-	PersonName  string `json:"person_name" validate:"required"`
-	Email       string `json:"email" validate:"required,email"`
-	Topic       string `json:"topic" validate:"required"`
-	Priority    string `json:"priority" validate:"oneof=low normal high urgent"`
+	BrowserUUID *uuid.UUID `json:"browser_uuid"` // For anonymous users
+	OSSUserID   *string    `json:"oss_user_id"`  // For logged-in OSS users
+	Email       *string    `json:"email"`        // For logged-in users
+	Topic       string     `json:"topic" validate:"required"`
+	Priority    string     `json:"priority" validate:"oneof=low normal high urgent"`
+	UserAgent   *string    `json:"user_agent"`
 }
 
 type StartChatResponse struct {
-	SessionID uuid.UUID `json:"session_id"`
-	Status    string    `json:"status"`
+	SessionID       uuid.UUID `json:"session_id"`
+	ChatUserID      uuid.UUID `json:"chat_user_id"`
+	Status          string    `json:"status"`
+	Message         string    `json:"message"`
+	RequiresContact bool      `json:"requires_contact"` // True if contact info needed
+}
+
+type SetSessionContactRequest struct {
+	SessionID    uuid.UUID `json:"session_id" validate:"required"`
+	ContactName  string    `json:"contact_name" validate:"required"`
+	ContactEmail string    `json:"contact_email" validate:"required,email"`
+	ContactPhone *string   `json:"contact_phone"`
+	Position     *string   `json:"position"`
+	CompanyName  *string   `json:"company_name"`
+}
+
+type SetSessionContactResponse struct {
+	ContactID uuid.UUID `json:"contact_id"`
 	Message   string    `json:"message"`
+}
+
+type LinkOSSUserRequest struct {
+	BrowserUUID uuid.UUID `json:"browser_uuid" validate:"required"`
+	OSSUserID   string    `json:"oss_user_id" validate:"required"`
+	Email       string    `json:"email" validate:"required,email"`
+}
+
+type LinkOSSUserResponse struct {
+	ChatUserID uuid.UUID `json:"chat_user_id"`
+	Message    string    `json:"message"`
+}
+
+type GetChatHistoryRequest struct {
+	BrowserUUID *uuid.UUID `json:"browser_uuid"` // For anonymous users
+	OSSUserID   *string    `json:"oss_user_id"`  // For logged-in users
+	Limit       int        `json:"limit"`
+	Offset      int        `json:"offset"`
+}
+
+type GetChatHistoryResponse struct {
+	Sessions []ChatSessionHistory `json:"sessions"`
+	Total    int                  `json:"total"`
+	Limit    int                  `json:"limit"`
+	Offset   int                  `json:"offset"`
+}
+
+type ChatSessionHistory struct {
+	SessionID   uuid.UUID           `json:"session_id"`
+	Topic       string              `json:"topic"`
+	Status      string              `json:"status"`
+	Priority    string              `json:"priority"`
+	StartedAt   time.Time           `json:"started_at"`
+	EndedAt     *time.Time          `json:"ended_at"`
+	Agent       *User               `json:"agent,omitempty"`
+	Department  *Department         `json:"department,omitempty"`
+	Contact     *ChatSessionContact `json:"contact,omitempty"`
+	Messages    []ChatMessage       `json:"messages,omitempty"`
+	LastMessage *ChatMessage        `json:"last_message,omitempty"`
 }
 
 type AssignAgentRequest struct {

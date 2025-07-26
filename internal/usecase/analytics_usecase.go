@@ -8,23 +8,20 @@ import (
 )
 
 type AnalyticsUsecase struct {
-	sessionRepo  domain.ChatSessionRepository
-	messageRepo  domain.ChatMessageRepository
-	userRepo     domain.UserRepository
-	customerRepo domain.CustomerRepository
+	sessionRepo domain.ChatSessionRepository
+	messageRepo domain.ChatMessageRepository
+	userRepo    domain.UserRepository
 }
 
 func NewAnalyticsUsecase(
 	sessionRepo domain.ChatSessionRepository,
 	messageRepo domain.ChatMessageRepository,
 	userRepo domain.UserRepository,
-	customerRepo domain.CustomerRepository,
 ) *AnalyticsUsecase {
 	return &AnalyticsUsecase{
-		sessionRepo:  sessionRepo,
-		messageRepo:  messageRepo,
-		userRepo:     userRepo,
-		customerRepo: customerRepo,
+		sessionRepo: sessionRepo,
+		messageRepo: messageRepo,
+		userRepo:    userRepo,
 	}
 }
 

@@ -12,96 +12,39 @@ import (
 type ChatUsecase struct {
 	sessionRepo  domain.ChatSessionRepository
 	messageRepo  domain.ChatMessageRepository
-	customerRepo domain.CustomerRepository
 	userRepo     domain.UserRepository
 	logRepo      domain.ChatLogRepository
+	chatUserRepo domain.ChatUserRepository           // Added for OSS support
+	contactRepo  domain.ChatSessionContactRepository // Added for OSS support
 }
 
 func NewChatUsecase(
 	sessionRepo domain.ChatSessionRepository,
 	messageRepo domain.ChatMessageRepository,
-	customerRepo domain.CustomerRepository,
 	userRepo domain.UserRepository,
 	logRepo domain.ChatLogRepository,
+	chatUserRepo domain.ChatUserRepository, // Added for OSS support
+	contactRepo domain.ChatSessionContactRepository, // Added for OSS support
 ) *ChatUsecase {
 	return &ChatUsecase{
 		sessionRepo:  sessionRepo,
 		messageRepo:  messageRepo,
-		customerRepo: customerRepo,
 		userRepo:     userRepo,
 		logRepo:      logRepo,
+		chatUserRepo: chatUserRepo,
+		contactRepo:  contactRepo,
 	}
 }
 
 func (uc *ChatUsecase) StartChat(ctx context.Context, req *domain.StartChatRequest, ipAddress string) (*domain.StartChatResponse, error) {
-	// Create or get customer
-	customer := &domain.Customer{
-		ID:          uuid.New(),
-		CompanyName: req.CompanyName,
-		PersonName:  req.PersonName,
-		Email:       req.Email,
-		IPAddress:   ipAddress,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+	// Handle OSS mode if browser_uuid or oss_user_id is provided
+	if req.BrowserUUID != nil || req.OSSUserID != nil {
+		return uc.StartOSSChat(ctx, req, ipAddress)
 	}
 
-	customer, err := uc.customerRepo.GetOrCreate(ctx, customer)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create chat session
-	session := &domain.ChatSession{
-		ID:         uuid.New(),
-		CustomerID: customer.ID,
-		Topic:      req.Topic,
-		Priority:   req.Priority,
-		Status:     "waiting",
-		StartedAt:  time.Now(),
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-	}
-
-	if req.Priority == "" {
-		session.Priority = "normal"
-	}
-
-	if err := uc.sessionRepo.Create(ctx, session); err != nil {
-		return nil, err
-	}
-
-	// Log chat started
-	log := &domain.ChatLog{
-		ID:        uuid.New(),
-		SessionID: session.ID,
-		Action:    "started",
-		Details:   "Chat session started by customer",
-		CreatedAt: time.Now(),
-	}
-
-	if err := uc.logRepo.Create(ctx, log); err != nil {
-		return nil, err
-	}
-
-	// Try to auto-assign an agent
-	if err := uc.AutoAssignAgent(ctx, session.ID); err != nil {
-		// Log the error but don't fail the session creation
-		// The session will remain in "waiting" status
-		log.Action = "auto_assignment_failed"
-		log.Details = "Failed to auto-assign agent: " + err.Error()
-		uc.logRepo.Create(ctx, log)
-	} else {
-		// Reload session to get updated status
-		if updatedSession, err := uc.sessionRepo.GetByID(ctx, session.ID); err == nil && updatedSession != nil {
-			session = updatedSession
-		}
-	}
-
-	return &domain.StartChatResponse{
-		SessionID: session.ID,
-		Status:    session.Status,
-		Message:   "Chat session started. Please wait for an agent to respond.",
-	}, nil
+	// For backward compatibility, handle legacy requests
+	// This should be removed in future versions
+	return nil, errors.New("legacy mode not supported. Please use OSS mode with browser_uuid or oss_user_id")
 }
 
 func (uc *ChatUsecase) SendMessage(ctx context.Context, req *domain.SendMessageRequest, senderID *uuid.UUID, senderType string) (*domain.SendMessageResponse, error) {
@@ -309,8 +252,8 @@ func (uc *ChatUsecase) GetAgentSessionsWithPagination(ctx context.Context, agent
 	return sessions, total, nil
 }
 
-func (uc *ChatUsecase) GetCustomerSessions(ctx context.Context, customerID uuid.UUID) ([]*domain.ChatSession, error) {
-	sessions, err := uc.sessionRepo.GetByCustomerID(ctx, customerID)
+func (uc *ChatUsecase) GetChatUserSessions(ctx context.Context, chatUserID uuid.UUID) ([]*domain.ChatSession, error) {
+	sessions, err := uc.sessionRepo.GetByChatUserID(ctx, chatUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -396,4 +339,289 @@ func (uc *ChatUsecase) AutoAssignAgent(ctx context.Context, sessionID uuid.UUID)
 
 func (uc *ChatUsecase) GetMessageByID(ctx context.Context, messageID uuid.UUID) (*domain.ChatMessage, error) {
 	return uc.messageRepo.GetByID(ctx, messageID)
+}
+
+// StartOSSChat handles OSS-specific chat starting logic
+func (uc *ChatUsecase) StartOSSChat(ctx context.Context, req *domain.StartChatRequest, ipAddress string) (*domain.StartChatResponse, error) {
+	var chatUser *domain.ChatUser
+	var err error
+
+	// Determine if user is anonymous or logged-in
+	if req.BrowserUUID != nil {
+		// Try to get existing user by browser UUID
+		chatUser, err = uc.chatUserRepo.GetByBrowserUUID(ctx, *req.BrowserUUID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if chatUser == nil && req.OSSUserID != nil && req.Email != nil {
+		// Try to get existing user by OSS user ID
+		chatUser, err = uc.chatUserRepo.GetByOSSUserID(ctx, *req.OSSUserID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Create new user if not found
+	if chatUser == nil {
+		chatUser = &domain.ChatUser{
+			ID:        uuid.New(),
+			IPAddress: ipAddress,
+			UserAgent: req.UserAgent,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		if req.BrowserUUID != nil {
+			chatUser.BrowserUUID = req.BrowserUUID
+			chatUser.IsAnonymous = true
+		}
+
+		if req.OSSUserID != nil && req.Email != nil {
+			chatUser.OSSUserID = req.OSSUserID
+			chatUser.Email = req.Email
+			chatUser.IsAnonymous = false
+		}
+
+		if err := uc.chatUserRepo.Create(ctx, chatUser); err != nil {
+			return nil, err
+		}
+	}
+
+	// Create chat session
+	session := &domain.ChatSession{
+		ID:         uuid.New(),
+		ChatUserID: chatUser.ID,
+		Topic:      req.Topic,
+		Status:     "waiting",
+		Priority:   req.Priority,
+		StartedAt:  time.Now(),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	if req.Priority == "" {
+		session.Priority = "normal"
+	}
+
+	if err := uc.sessionRepo.Create(ctx, session); err != nil {
+		return nil, err
+	}
+
+	// Log the chat start
+	log := &domain.ChatLog{
+		ID:        uuid.New(),
+		SessionID: session.ID,
+		Action:    "started",
+		Details:   "Chat session started (OSS mode)",
+		CreatedAt: time.Now(),
+	}
+
+	if err := uc.logRepo.Create(ctx, log); err != nil {
+		return nil, err
+	}
+
+	// Try to auto-assign an agent
+	if err := uc.AutoAssignAgent(ctx, session.ID); err != nil {
+		log.Action = "auto_assignment_failed"
+		log.Details = "Failed to auto-assign agent: " + err.Error()
+		uc.logRepo.Create(ctx, log)
+	} else {
+		// Reload session to get updated status
+		if updatedSession, err := uc.sessionRepo.GetByID(ctx, session.ID); err == nil && updatedSession != nil {
+			session = updatedSession
+		}
+	}
+
+	// Determine if contact information is required
+	requiresContact := chatUser.IsAnonymous || (chatUser.OSSUserID != nil && chatUser.Email != nil)
+
+	return &domain.StartChatResponse{
+		SessionID:       session.ID,
+		ChatUserID:      chatUser.ID,
+		Status:          session.Status,
+		Message:         "Chat session started successfully",
+		RequiresContact: requiresContact,
+	}, nil
+}
+
+// SetSessionContact sets contact information for a chat session
+func (uc *ChatUsecase) SetSessionContact(ctx context.Context, req *domain.SetSessionContactRequest) (*domain.SetSessionContactResponse, error) {
+	// Verify session exists
+	session, err := uc.sessionRepo.GetByID(ctx, req.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	if session == nil {
+		return nil, errors.New("session not found")
+	}
+
+	// Check if contact already exists
+	existingContact, err := uc.contactRepo.GetBySessionID(ctx, req.SessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	if existingContact != nil {
+		// Update existing contact
+		existingContact.ContactName = req.ContactName
+		existingContact.ContactEmail = req.ContactEmail
+		existingContact.ContactPhone = req.ContactPhone
+		existingContact.Position = req.Position
+		existingContact.CompanyName = req.CompanyName
+		existingContact.UpdatedAt = time.Now()
+
+		if err := uc.contactRepo.Update(ctx, existingContact); err != nil {
+			return nil, err
+		}
+
+		return &domain.SetSessionContactResponse{
+			ContactID: existingContact.ID,
+			Message:   "Contact information updated successfully",
+		}, nil
+	}
+
+	// Create new contact
+	contact := &domain.ChatSessionContact{
+		ID:           uuid.New(),
+		SessionID:    req.SessionID,
+		ContactName:  req.ContactName,
+		ContactEmail: req.ContactEmail,
+		ContactPhone: req.ContactPhone,
+		Position:     req.Position,
+		CompanyName:  req.CompanyName,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	if err := uc.contactRepo.Create(ctx, contact); err != nil {
+		return nil, err
+	}
+
+	// Log the contact information addition
+	log := &domain.ChatLog{
+		ID:        uuid.New(),
+		SessionID: req.SessionID,
+		Action:    "contact_added",
+		Details:   "Contact information added",
+		CreatedAt: time.Now(),
+	}
+	uc.logRepo.Create(ctx, log)
+
+	return &domain.SetSessionContactResponse{
+		ContactID: contact.ID,
+		Message:   "Contact information set successfully",
+	}, nil
+}
+
+// LinkOSSUser links an anonymous user to an OSS account
+func (uc *ChatUsecase) LinkOSSUser(ctx context.Context, req *domain.LinkOSSUserRequest) (*domain.LinkOSSUserResponse, error) {
+	// Get the anonymous user by browser UUID
+	chatUser, err := uc.chatUserRepo.GetByBrowserUUID(ctx, req.BrowserUUID)
+	if err != nil {
+		return nil, err
+	}
+	if chatUser == nil {
+		return nil, errors.New("anonymous user not found")
+	}
+
+	if !chatUser.IsAnonymous {
+		return nil, errors.New("user is already linked to OSS account")
+	}
+
+	// Link the user to OSS account
+	if err := uc.chatUserRepo.LinkOSSUser(ctx, req.BrowserUUID, req.OSSUserID, req.Email); err != nil {
+		return nil, err
+	}
+
+	// Get updated user
+	updatedUser, err := uc.chatUserRepo.GetByBrowserUUID(ctx, req.BrowserUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.LinkOSSUserResponse{
+		ChatUserID: updatedUser.ID,
+		Message:    "Successfully linked to OSS account",
+	}, nil
+}
+
+// GetChatHistory gets chat history for a user
+func (uc *ChatUsecase) GetChatHistory(ctx context.Context, req *domain.GetChatHistoryRequest) (*domain.GetChatHistoryResponse, error) {
+	var chatUser *domain.ChatUser
+	var err error
+
+	// Find chat user
+	if req.BrowserUUID != nil {
+		chatUser, err = uc.chatUserRepo.GetByBrowserUUID(ctx, *req.BrowserUUID)
+	} else if req.OSSUserID != nil {
+		chatUser, err = uc.chatUserRepo.GetByOSSUserID(ctx, *req.OSSUserID)
+	} else {
+		return nil, errors.New("either browser_uuid or oss_user_id must be provided")
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	if chatUser == nil {
+		return nil, errors.New("chat user not found")
+	}
+
+	// Set default pagination
+	if req.Limit <= 0 {
+		req.Limit = 20
+	}
+	if req.Offset < 0 {
+		req.Offset = 0
+	}
+
+	// Get sessions with messages
+	sessions, err := uc.sessionRepo.GetSessionsWithMessages(ctx, chatUser.ID, req.Limit, req.Offset)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to response format
+	var sessionHistories []domain.ChatSessionHistory
+	for _, session := range sessions {
+		history := domain.ChatSessionHistory{
+			SessionID:  session.ID,
+			Topic:      session.Topic,
+			Status:     session.Status,
+			Priority:   session.Priority,
+			StartedAt:  session.StartedAt,
+			EndedAt:    session.EndedAt,
+			Agent:      session.Agent,
+			Department: session.Department,
+		}
+
+		// Get contact information
+		contact, err := uc.contactRepo.GetBySessionID(ctx, session.ID)
+		if err == nil && contact != nil {
+			history.Contact = contact
+		}
+
+		// Add messages if available
+		if len(session.Messages) > 0 {
+			history.Messages = session.Messages
+			// Set last message
+			history.LastMessage = &session.Messages[len(session.Messages)-1]
+		}
+
+		sessionHistories = append(sessionHistories, history)
+	}
+
+	// Count total sessions for pagination
+	totalSessions, err := uc.sessionRepo.Count(ctx, "", nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.GetChatHistoryResponse{
+		Sessions: sessionHistories,
+		Total:    totalSessions,
+		Limit:    req.Limit,
+		Offset:   req.Offset,
+	}, nil
 }

@@ -31,11 +31,19 @@ func SetupRoutes(
 	// API routes
 	api := app.Group("/api")
 
-	// Public routes
+	// Public chat routes (legacy for backward compatibility)
 	public := api.Group("/public")
 	public.Post("/chat/start", chatHandler.StartChat)
 	public.Post("/chat/message", chatHandler.SendMessage)
 	public.Get("/chat/session/:session_id/messages", chatHandler.GetSessionMessages)
+
+	// OSS Chat routes (public endpoints for OSS integration)
+	ossChat := api.Group("/chat")
+	ossChat.Post("/start", chatHandler.StartChat)
+	ossChat.Post("/contact", chatHandler.SetSessionContact)
+	ossChat.Post("/link-user", chatHandler.LinkOSSUser)
+	ossChat.Get("/history", chatHandler.GetChatHistory)
+	ossChat.Get("/session/:session_id", chatHandler.GetSession)
 
 	// Authentication routes
 	auth := api.Group("/auth")
@@ -46,22 +54,22 @@ func SetupRoutes(
 	auth.Get("/profile", authMiddleware.RequireAuth(), authHandler.GetProfile)
 	auth.Post("/register", authMiddleware.RequireAuth(), authMiddleware.RequireAdmin(), authHandler.Register)
 
-	// Protected chat routes
-	chat := api.Group("/chat")
-	chat.Use(authMiddleware.RequireAuth())
+	// Protected chat management routes
+	chatManagement := api.Group("/chat-management")
+	chatManagement.Use(authMiddleware.RequireAuth())
 
 	// Agent routes
-	agent := chat.Group("/agent")
+	agent := chatManagement.Group("/agent")
 	agent.Use(authMiddleware.RequireAgent())
 	agent.Post("/message", chatHandler.SendMessage)
 	agent.Post("/assign", chatHandler.AssignAgent)
 	agent.Post("/close", chatHandler.CloseSession)
 	agent.Get("/sessions", chatHandler.GetAgentSessions)
 	agent.Get("/sessions/:id/connection-status", chatHandler.GetSessionConnectionStatus)
-	agent.Get("/sessions/:id", chatHandler.GetSession)
+	agent.Get("/sessions/:session_id", chatHandler.GetSession)
 
 	// Admin routes
-	admin := chat.Group("/admin")
+	admin := chatManagement.Group("/admin")
 	admin.Use(authMiddleware.RequireAdmin())
 	admin.Get("/waiting", chatHandler.GetWaitingSessions)
 	admin.Get("/active", chatHandler.GetActiveSessions)

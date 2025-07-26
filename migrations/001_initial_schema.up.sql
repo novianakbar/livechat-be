@@ -25,22 +25,29 @@ CREATE TABLE users (
     deleted_at TIMESTAMP NULL
 );
 
--- Create customers table
-CREATE TABLE customers (
+-- Create chat_users table (refactored from customers)
+CREATE TABLE chat_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_name VARCHAR(255) NOT NULL,
-    person_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
+    browser_uuid UUID UNIQUE, -- UUID dari browser untuk anonymous users
+    oss_user_id VARCHAR(255), -- ID user dari sistem OSS
+    email VARCHAR(255), -- Email untuk logged-in users
+    is_anonymous BOOLEAN DEFAULT true,
     ip_address VARCHAR(45) NOT NULL,
+    user_agent TEXT, -- Browser user agent
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL
+    deleted_at TIMESTAMP NULL,
+    -- Constraints
+    CHECK (
+        (is_anonymous = true AND browser_uuid IS NOT NULL) OR
+        (is_anonymous = false AND oss_user_id IS NOT NULL AND email IS NOT NULL)
+    )
 );
 
 -- Create chat_sessions table
 CREATE TABLE chat_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    customer_id UUID NOT NULL REFERENCES customers(id),
+    chat_user_id UUID NOT NULL REFERENCES chat_users(id),
     agent_id UUID REFERENCES users(id),
     department_id UUID REFERENCES departments(id),
     topic VARCHAR(255) NOT NULL,
@@ -51,6 +58,21 @@ CREATE TABLE chat_sessions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL
+);
+
+-- Create chat_session_contacts table
+CREATE TABLE chat_session_contacts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES chat_sessions(id),
+    contact_name VARCHAR(255) NOT NULL,
+    contact_email VARCHAR(255) NOT NULL,
+    contact_phone VARCHAR(50),
+    position VARCHAR(255), -- Job position (optional)
+    company_name VARCHAR(255), -- Company name if applicable
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL,
+    UNIQUE(session_id) -- One contact per session
 );
 
 -- Create chat_messages table
@@ -132,16 +154,23 @@ CREATE INDEX idx_users_department_id ON users(department_id);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_deleted_at ON users(deleted_at);
 
-CREATE INDEX idx_customers_email ON customers(email);
-CREATE INDEX idx_customers_deleted_at ON customers(deleted_at);
+CREATE INDEX idx_chat_users_browser_uuid ON chat_users(browser_uuid);
+CREATE INDEX idx_chat_users_oss_user_id ON chat_users(oss_user_id);
+CREATE INDEX idx_chat_users_email ON chat_users(email);
+CREATE INDEX idx_chat_users_is_anonymous ON chat_users(is_anonymous);
+CREATE INDEX idx_chat_users_deleted_at ON chat_users(deleted_at);
 
-CREATE INDEX idx_chat_sessions_customer_id ON chat_sessions(customer_id);
+CREATE INDEX idx_chat_sessions_chat_user_id ON chat_sessions(chat_user_id);
 CREATE INDEX idx_chat_sessions_agent_id ON chat_sessions(agent_id);
 CREATE INDEX idx_chat_sessions_department_id ON chat_sessions(department_id);
 CREATE INDEX idx_chat_sessions_status ON chat_sessions(status);
 CREATE INDEX idx_chat_sessions_priority ON chat_sessions(priority);
 CREATE INDEX idx_chat_sessions_started_at ON chat_sessions(started_at);
 CREATE INDEX idx_chat_sessions_deleted_at ON chat_sessions(deleted_at);
+
+CREATE INDEX idx_chat_session_contacts_session_id ON chat_session_contacts(session_id);
+CREATE INDEX idx_chat_session_contacts_contact_email ON chat_session_contacts(contact_email);
+CREATE INDEX idx_chat_session_contacts_deleted_at ON chat_session_contacts(deleted_at);
 
 CREATE INDEX idx_chat_messages_session_id ON chat_messages(session_id);
 CREATE INDEX idx_chat_messages_sender_id ON chat_messages(sender_id);
@@ -178,8 +207,9 @@ $$ language 'plpgsql';
 
 CREATE TRIGGER update_departments_updated_at BEFORE UPDATE ON departments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON customers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_chat_users_updated_at BEFORE UPDATE ON chat_users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_chat_sessions_updated_at BEFORE UPDATE ON chat_sessions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_chat_session_contacts_updated_at BEFORE UPDATE ON chat_session_contacts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_chat_messages_updated_at BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_chat_tags_updated_at BEFORE UPDATE ON chat_tags FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_agent_status_updated_at BEFORE UPDATE ON agent_status FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

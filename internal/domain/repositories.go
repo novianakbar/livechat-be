@@ -7,6 +7,15 @@ import (
 	"github.com/google/uuid"
 )
 
+// Usecase interfaces
+type OSSChatUsecase interface {
+	StartChat(ctx context.Context, req *StartChatRequest, ipAddress string) (*StartChatResponse, error)
+	SetSessionContact(ctx context.Context, req *SetSessionContactRequest) (*SetSessionContactResponse, error)
+	LinkOSSUser(ctx context.Context, req *LinkOSSUserRequest) (*LinkOSSUserResponse, error)
+	GetChatHistory(ctx context.Context, req *GetChatHistoryRequest) (*GetChatHistoryResponse, error)
+}
+
+// Repository interfaces
 // UserRepository interface for user operations
 type UserRepository interface {
 	Create(ctx context.Context, user *User) error
@@ -33,20 +42,33 @@ type DepartmentRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
-// CustomerRepository interface for customer operations
-type CustomerRepository interface {
-	Create(ctx context.Context, customer *Customer) error
-	GetByID(ctx context.Context, id uuid.UUID) (*Customer, error)
-	GetByEmail(ctx context.Context, email string) (*Customer, error)
-	Update(ctx context.Context, customer *Customer) error
-	GetOrCreate(ctx context.Context, customer *Customer) (*Customer, error)
+// ChatUserRepository interface for chat user operations
+type ChatUserRepository interface {
+	Create(ctx context.Context, user *ChatUser) error
+	GetByID(ctx context.Context, id uuid.UUID) (*ChatUser, error)
+	GetByBrowserUUID(ctx context.Context, browserUUID uuid.UUID) (*ChatUser, error)
+	GetByOSSUserID(ctx context.Context, ossUserID string) (*ChatUser, error)
+	GetByEmail(ctx context.Context, email string) (*ChatUser, error)
+	Update(ctx context.Context, user *ChatUser) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	LinkOSSUser(ctx context.Context, browserUUID uuid.UUID, ossUserID string, email string) error
+	List(ctx context.Context, limit, offset int) ([]*ChatUser, error)
+	Count(ctx context.Context) (int64, error)
+}
+
+// ChatSessionContactRepository interface for chat session contact operations
+type ChatSessionContactRepository interface {
+	Create(ctx context.Context, contact *ChatSessionContact) error
+	GetBySessionID(ctx context.Context, sessionID uuid.UUID) (*ChatSessionContact, error)
+	Update(ctx context.Context, contact *ChatSessionContact) error
+	Delete(ctx context.Context, sessionID uuid.UUID) error
 }
 
 // ChatSessionRepository interface for chat session operations
 type ChatSessionRepository interface {
 	Create(ctx context.Context, session *ChatSession) error
 	GetByID(ctx context.Context, id uuid.UUID) (*ChatSession, error)
-	GetByCustomerID(ctx context.Context, customerID uuid.UUID) ([]*ChatSession, error)
+	GetByChatUserID(ctx context.Context, chatUserID uuid.UUID) ([]*ChatSession, error)
 	GetByAgentID(ctx context.Context, agentID uuid.UUID) ([]*ChatSession, error)
 	GetActiveSessions(ctx context.Context) ([]*ChatSession, error)
 	GetWaitingSessions(ctx context.Context) ([]*ChatSession, error)
@@ -55,6 +77,8 @@ type ChatSessionRepository interface {
 	GetSessionsByStatus(ctx context.Context, status string) ([]*ChatSession, error)
 	GetSessionsByDateRange(ctx context.Context, start, end time.Time) ([]*ChatSession, error)
 	GetWithPagination(ctx context.Context, offset, limit int, status string, agentID, departmentID *uuid.UUID) ([]*ChatSession, error)
+	GetSessionsWithMessages(ctx context.Context, chatUserID uuid.UUID, limit, offset int) ([]*ChatSession, error)
+	GetSessionHistory(ctx context.Context, chatUserID uuid.UUID, limit, offset int) ([]*ChatSession, error)
 	Count(ctx context.Context, status string, agentID, departmentID *uuid.UUID) (int, error)
 	// Analytics methods
 	CountByStatus(ctx context.Context, status string) (int64, error)

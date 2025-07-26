@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -46,11 +47,23 @@ func (h *ChatHandler) StartChat(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate request
-	if req.CompanyName == "" || req.PersonName == "" || req.Email == "" || req.Topic == "" {
+	// Validate request - for OSS mode, we need either browser_uuid or oss_user_id + email
+	if req.Topic == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
 			Success: false,
-			Message: "Company name, person name, email, and topic are required",
+			Message: "Topic is required",
+			Error:   "validation failed",
+		})
+	}
+
+	// Check if we have either anonymous or logged-in user data
+	hasAnonymousData := req.BrowserUUID != nil
+	hasLoggedInData := req.OSSUserID != nil && req.Email != nil
+
+	if !hasAnonymousData && !hasLoggedInData {
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Either browser_uuid (for anonymous) or oss_user_id + email (for logged-in) is required",
 			Error:   "validation failed",
 		})
 	}
@@ -489,7 +502,7 @@ func (h *ChatHandler) GetSessions(c *fiber.Ctx) error {
 // @Failure 404 {object} domain.ApiResponse
 // @Router /api/chat/sessions/{id} [get]
 func (h *ChatHandler) GetSession(c *fiber.Ctx) error {
-	sessionIDStr := c.Params("id")
+	sessionIDStr := c.Params("session_id")
 	if sessionIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
 			Success: false,
@@ -561,5 +574,162 @@ func (h *ChatHandler) GetSessionConnectionStatus(c *fiber.Ctx) error {
 			"note":               "Connection status is managed by the WebSocket service (livechat-ws)",
 			"websocket_endpoint": "/ws",
 		},
+	})
+}
+
+// SetSessionContact sets contact information for a chat session
+func (h *ChatHandler) SetSessionContact(c *fiber.Ctx) error {
+	var req domain.SetSessionContactRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Invalid request body",
+			Error:   err.Error(),
+		})
+	}
+
+	resp, err := h.chatUsecase.SetSessionContact(c.Context(), &req)
+	if err != nil {
+		if err.Error() == "session not found" {
+			return c.Status(fiber.StatusNotFound).JSON(domain.ApiResponse{
+				Success: false,
+				Message: "Session not found",
+				Error:   err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Failed to set contact information",
+			Error:   err.Error(),
+		})
+	}
+
+	return c.JSON(domain.ApiResponse{
+		Success: true,
+		Message: "Contact information set successfully",
+		Data:    resp,
+	})
+}
+
+// LinkOSSUser links an anonymous user to an OSS account
+func (h *ChatHandler) LinkOSSUser(c *fiber.Ctx) error {
+	var req domain.LinkOSSUserRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Invalid request body",
+			Error:   err.Error(),
+		})
+	}
+
+	resp, err := h.chatUsecase.LinkOSSUser(c.Context(), &req)
+	if err != nil {
+		if err.Error() == "anonymous user not found" {
+			return c.Status(fiber.StatusNotFound).JSON(domain.ApiResponse{
+				Success: false,
+				Message: "Anonymous user not found",
+				Error:   err.Error(),
+			})
+		}
+		if err.Error() == "user is already linked to OSS account" {
+			return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+				Success: false,
+				Message: "User is already linked to OSS account",
+				Error:   err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Failed to link OSS user",
+			Error:   err.Error(),
+		})
+	}
+
+	return c.JSON(domain.ApiResponse{
+		Success: true,
+		Message: "Successfully linked to OSS account",
+		Data:    resp,
+	})
+}
+
+// GetChatHistory gets chat history for a user
+func (h *ChatHandler) GetChatHistory(c *fiber.Ctx) error {
+	var req domain.GetChatHistoryRequest
+
+	// Parse query parameters
+	if browserUUIDStr := c.Query("browser_uuid"); browserUUIDStr != "" {
+		browserUUID, err := uuid.Parse(browserUUIDStr)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+				Success: false,
+				Message: "Invalid browser_uuid format",
+				Error:   err.Error(),
+			})
+		}
+		req.BrowserUUID = &browserUUID
+	}
+
+	if ossUserID := c.Query("oss_user_id"); ossUserID != "" {
+		req.OSSUserID = &ossUserID
+	}
+
+	// Parse pagination parameters
+	if limitStr := c.Query("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit <= 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+				Success: false,
+				Message: "Invalid limit parameter",
+				Error:   err.Error(),
+			})
+		}
+		req.Limit = limit
+	} else {
+		req.Limit = 20 // Default limit
+	}
+
+	if offsetStr := c.Query("offset"); offsetStr != "" {
+		offset, err := strconv.Atoi(offsetStr)
+		if err != nil || offset < 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+				Success: false,
+				Message: "Invalid offset parameter",
+				Error:   err.Error(),
+			})
+		}
+		req.Offset = offset
+	} else {
+		req.Offset = 0 // Default offset
+	}
+
+	// Validate that at least one identifier is provided
+	if req.BrowserUUID == nil && req.OSSUserID == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Either browser_uuid or oss_user_id must be provided",
+			Error:   "validation failed",
+		})
+	}
+
+	resp, err := h.chatUsecase.GetChatHistory(c.Context(), &req)
+	if err != nil {
+		if err.Error() == "chat user not found" {
+			return c.Status(fiber.StatusNotFound).JSON(domain.ApiResponse{
+				Success: false,
+				Message: "Chat user not found",
+				Error:   err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Failed to get chat history",
+			Error:   err.Error(),
+		})
+	}
+
+	return c.JSON(domain.ApiResponse{
+		Success: true,
+		Message: "Chat history retrieved successfully",
+		Data:    resp,
 	})
 }

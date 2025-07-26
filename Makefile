@@ -24,6 +24,9 @@ help:
 	@echo "  db-drop         - Drop database"
 	@echo "  docker-build    - Build Docker image"
 	@echo "  docker-run      - Run Docker container"
+	@echo "  oss-setup       - Setup OSS-specific tables and data"
+	@echo "  oss-seed        - Seed OSS test data"
+	@echo "  oss-test        - Run OSS-specific tests"
 
 # Build the application
 .PHONY: build
@@ -131,3 +134,19 @@ docs:
 .PHONY: check
 check: fmt lint test
 	@echo "All checks passed!"
+
+# OSS-specific commands
+.PHONY: oss-setup
+oss-setup:
+	@echo "Setting up OSS-specific tables and data..."
+	# Add commands to setup OSS-specific tables and data
+
+.PHONY: oss-seed
+oss-seed:
+	@echo "Seeding OSS test data..."
+	# Add commands to seed OSS test data
+
+.PHONY: oss-test
+oss-test:
+	@echo "Running OSS-specific tests..."
+	# Add commands to run OSS-specific tests

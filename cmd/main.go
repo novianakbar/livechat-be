@@ -41,13 +41,14 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	sessionRepo := repository.NewChatSessionRepository(db)
 	messageRepo := repository.NewChatMessageRepository(db)
-	customerRepo := repository.NewCustomerRepository(db)
 	logRepo := repository.NewChatLogRepository(db)
+	chatUserRepo := repository.NewChatUserRepository(db)
+	sessionContactRepo := repository.NewChatSessionContactRepository(db)
 
 	// Initialize use cases
 	authUsecase := usecase.NewAuthUsecase(userRepo, jwtUtil)
-	chatUsecase := usecase.NewChatUsecase(sessionRepo, messageRepo, customerRepo, userRepo, logRepo)
-	analyticsUsecase := usecase.NewAnalyticsUsecase(sessionRepo, messageRepo, userRepo, customerRepo)
+	chatUsecase := usecase.NewChatUsecase(sessionRepo, messageRepo, userRepo, logRepo, chatUserRepo, sessionContactRepo)
+	analyticsUsecase := usecase.NewAnalyticsUsecase(sessionRepo, messageRepo, userRepo)
 	userUsecase := usecase.NewUserUsecase(userRepo)
 
 	// Initialize email service

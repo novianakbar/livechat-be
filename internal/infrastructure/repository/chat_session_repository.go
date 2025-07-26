@@ -25,10 +25,11 @@ func (r *chatSessionRepository) Create(ctx context.Context, session *domain.Chat
 func (r *chatSessionRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.ChatSession, error) {
 	var session domain.ChatSession
 	if err := r.db.WithContext(ctx).
-		Preload("Customer").
+		Preload("ChatUser").
 		Preload("Agent").
 		Preload("Department").
-		First(&session, "id = ?", id).Error; err != nil {
+		Preload("Contact").
+		First(&session, "id = ? AND deleted_at IS NULL", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -37,13 +38,14 @@ func (r *chatSessionRepository) GetByID(ctx context.Context, id uuid.UUID) (*dom
 	return &session, nil
 }
 
-func (r *chatSessionRepository) GetByCustomerID(ctx context.Context, customerID uuid.UUID) ([]*domain.ChatSession, error) {
+func (r *chatSessionRepository) GetByChatUserID(ctx context.Context, chatUserID uuid.UUID) ([]*domain.ChatSession, error) {
 	var sessions []*domain.ChatSession
 	if err := r.db.WithContext(ctx).
-		Preload("Customer").
+		Preload("ChatUser").
 		Preload("Agent").
 		Preload("Department").
-		Where("customer_id = ?", customerID).
+		Preload("Contact").
+		Where("chat_user_id = ? AND deleted_at IS NULL", chatUserID).
 		Order("created_at DESC").
 		Find(&sessions).Error; err != nil {
 		return nil, err
@@ -54,9 +56,10 @@ func (r *chatSessionRepository) GetByCustomerID(ctx context.Context, customerID 
 func (r *chatSessionRepository) GetByAgentID(ctx context.Context, agentID uuid.UUID) ([]*domain.ChatSession, error) {
 	var sessions []*domain.ChatSession
 	if err := r.db.WithContext(ctx).
-		Preload("Customer").
+		Preload("ChatUser").
 		Preload("Agent").
 		Preload("Department").
+		Preload("Contact").
 		Where("agent_id = ?", agentID).
 		Order("created_at DESC").
 		Find(&sessions).Error; err != nil {
@@ -68,9 +71,10 @@ func (r *chatSessionRepository) GetByAgentID(ctx context.Context, agentID uuid.U
 func (r *chatSessionRepository) GetActiveSessions(ctx context.Context) ([]*domain.ChatSession, error) {
 	var sessions []*domain.ChatSession
 	if err := r.db.WithContext(ctx).
-		Preload("Customer").
+		Preload("ChatUser").
 		Preload("Agent").
 		Preload("Department").
+		Preload("Contact").
 		Where("status = ?", "active").
 		Order("created_at DESC").
 		Find(&sessions).Error; err != nil {
@@ -82,9 +86,10 @@ func (r *chatSessionRepository) GetActiveSessions(ctx context.Context) ([]*domai
 func (r *chatSessionRepository) GetWaitingSessions(ctx context.Context) ([]*domain.ChatSession, error) {
 	var sessions []*domain.ChatSession
 	if err := r.db.WithContext(ctx).
-		Preload("Customer").
+		Preload("ChatUser").
 		Preload("Agent").
 		Preload("Department").
+		Preload("Contact").
 		Where("status = ?", "waiting").
 		Order("created_at ASC").
 		Find(&sessions).Error; err != nil {
@@ -111,9 +116,10 @@ func (r *chatSessionRepository) Close(ctx context.Context, sessionID uuid.UUID) 
 func (r *chatSessionRepository) GetSessionsByStatus(ctx context.Context, status string) ([]*domain.ChatSession, error) {
 	var sessions []*domain.ChatSession
 	if err := r.db.WithContext(ctx).
-		Preload("Customer").
+		Preload("ChatUser").
 		Preload("Agent").
 		Preload("Department").
+		Preload("Contact").
 		Where("status = ?", status).
 		Order("created_at DESC").
 		Find(&sessions).Error; err != nil {
@@ -125,9 +131,10 @@ func (r *chatSessionRepository) GetSessionsByStatus(ctx context.Context, status 
 func (r *chatSessionRepository) GetSessionsByDateRange(ctx context.Context, start, end time.Time) ([]*domain.ChatSession, error) {
 	var sessions []*domain.ChatSession
 	if err := r.db.WithContext(ctx).
-		Preload("Customer").
+		Preload("ChatUser").
 		Preload("Agent").
 		Preload("Department").
+		Preload("Contact").
 		Where("created_at >= ? AND created_at <= ?", start, end).
 		Order("created_at DESC").
 		Find(&sessions).Error; err != nil {
@@ -174,9 +181,10 @@ func (r *chatSessionRepository) GetOSSCategoriesStats(ctx context.Context) ([]do
 
 func (r *chatSessionRepository) GetWithPagination(ctx context.Context, offset, limit int, status string, agentID, departmentID *uuid.UUID) ([]*domain.ChatSession, error) {
 	query := r.db.WithContext(ctx).
-		Preload("Customer").
+		Preload("ChatUser").
 		Preload("Agent").
-		Preload("Department")
+		Preload("Department").
+		Preload("Contact")
 
 	if status != "" {
 		query = query.Where("status = ?", status)
@@ -219,4 +227,41 @@ func (r *chatSessionRepository) Count(ctx context.Context, status string, agentI
 	}
 
 	return int(count), nil
+}
+
+func (r *chatSessionRepository) GetSessionsWithMessages(ctx context.Context, chatUserID uuid.UUID, limit, offset int) ([]*domain.ChatSession, error) {
+	var sessions []*domain.ChatSession
+	if err := r.db.WithContext(ctx).
+		Preload("ChatUser").
+		Preload("Agent").
+		Preload("Department").
+		Preload("Contact").
+		Preload("Messages", func(db *gorm.DB) *gorm.DB {
+			return db.Where("deleted_at IS NULL").Order("created_at ASC")
+		}).
+		Where("chat_user_id = ? AND deleted_at IS NULL", chatUserID).
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&sessions).Error; err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}
+
+func (r *chatSessionRepository) GetSessionHistory(ctx context.Context, chatUserID uuid.UUID, limit, offset int) ([]*domain.ChatSession, error) {
+	var sessions []*domain.ChatSession
+	if err := r.db.WithContext(ctx).
+		Preload("ChatUser").
+		Preload("Agent").
+		Preload("Department").
+		Preload("Contact").
+		Where("chat_user_id = ? AND deleted_at IS NULL", chatUserID).
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&sessions).Error; err != nil {
+		return nil, err
+	}
+	return sessions, nil
 }

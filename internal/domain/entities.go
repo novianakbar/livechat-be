@@ -33,13 +33,15 @@ type Department struct {
 	DeletedAt   gorm.DeletedAt `json:"deleted_at" gorm:"index"`
 }
 
-// Customer represents chat customer
-type Customer struct {
+// ChatUser represents chat user (anonymous or logged-in from OSS)
+type ChatUser struct {
 	ID          uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	CompanyName string         `json:"company_name" gorm:"not null"`
-	PersonName  string         `json:"person_name" gorm:"not null"`
-	Email       string         `json:"email" gorm:"not null"`
+	BrowserUUID *uuid.UUID     `json:"browser_uuid" gorm:"type:uuid;uniqueIndex"` // For anonymous users
+	OSSUserID   *string        `json:"oss_user_id"`                               // For logged-in OSS users
+	Email       *string        `json:"email"`                                     // For logged-in users
+	IsAnonymous bool           `json:"is_anonymous" gorm:"default:true"`
 	IPAddress   string         `json:"ip_address" gorm:"not null"`
+	UserAgent   *string        `json:"user_agent"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `json:"deleted_at" gorm:"index"`
@@ -47,18 +49,35 @@ type Customer struct {
 
 // ChatSession represents chat session
 type ChatSession struct {
+	ID           uuid.UUID           `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	ChatUserID   uuid.UUID           `json:"chat_user_id" gorm:"type:uuid;not null"`
+	ChatUser     ChatUser            `json:"chat_user" gorm:"foreignKey:ChatUserID"`
+	AgentID      *uuid.UUID          `json:"agent_id" gorm:"type:uuid"`
+	Agent        *User               `json:"agent,omitempty" gorm:"foreignKey:AgentID"`
+	DepartmentID *uuid.UUID          `json:"department_id" gorm:"type:uuid"`
+	Department   *Department         `json:"department,omitempty" gorm:"foreignKey:DepartmentID"`
+	Topic        string              `json:"topic" gorm:"not null"`
+	Status       string              `json:"status" gorm:"not null;default:'waiting'"` // waiting, active, closed
+	Priority     string              `json:"priority" gorm:"default:'normal'"`         // low, normal, high, urgent
+	StartedAt    time.Time           `json:"started_at"`
+	EndedAt      *time.Time          `json:"ended_at"`
+	Messages     []ChatMessage       `json:"messages,omitempty" gorm:"foreignKey:SessionID"`
+	Contact      *ChatSessionContact `json:"contact,omitempty" gorm:"foreignKey:SessionID"`
+	CreatedAt    time.Time           `json:"created_at"`
+	UpdatedAt    time.Time           `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt      `json:"deleted_at" gorm:"index"`
+}
+
+// ChatSessionContact represents contact information for a chat session
+type ChatSessionContact struct {
 	ID           uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	CustomerID   uuid.UUID      `json:"customer_id" gorm:"type:uuid;not null"`
-	Customer     Customer       `json:"customer" gorm:"foreignKey:CustomerID"`
-	AgentID      *uuid.UUID     `json:"agent_id" gorm:"type:uuid"`
-	Agent        *User          `json:"agent,omitempty" gorm:"foreignKey:AgentID"`
-	DepartmentID *uuid.UUID     `json:"department_id" gorm:"type:uuid"`
-	Department   *Department    `json:"department,omitempty" gorm:"foreignKey:DepartmentID"`
-	Topic        string         `json:"topic" gorm:"not null"`
-	Status       string         `json:"status" gorm:"not null;default:'waiting'"` // waiting, active, closed
-	Priority     string         `json:"priority" gorm:"default:'normal'"`         // low, normal, high, urgent
-	StartedAt    time.Time      `json:"started_at"`
-	EndedAt      *time.Time     `json:"ended_at"`
+	SessionID    uuid.UUID      `json:"session_id" gorm:"type:uuid;not null;uniqueIndex"`
+	Session      ChatSession    `json:"session" gorm:"foreignKey:SessionID"`
+	ContactName  string         `json:"contact_name" gorm:"not null"`
+	ContactEmail string         `json:"contact_email" gorm:"not null"`
+	ContactPhone *string        `json:"contact_phone"`
+	Position     *string        `json:"position"` // Job position
+	CompanyName  *string        `json:"company_name"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `json:"deleted_at" gorm:"index"`

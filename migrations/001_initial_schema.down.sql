@@ -1,3 +1,8 @@
+-- Drop triggers for new tables
+DROP TRIGGER IF EXISTS update_chat_session_contacts_updated_at ON chat_session_contacts;
+
+DROP TRIGGER IF EXISTS update_chat_users_updated_at ON chat_users;
+
 -- Drop triggers
 DROP TRIGGER IF EXISTS update_chat_analytics_updated_at ON chat_analytics;
 
@@ -103,3 +108,7 @@ DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS users;
 
 DROP TABLE IF EXISTS departments;
+
+DROP TABLE IF EXISTS chat_session_contacts;
+
+DROP TABLE IF EXISTS chat_users;
