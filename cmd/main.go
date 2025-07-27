@@ -44,9 +44,11 @@ func main() {
 	logRepo := repository.NewChatLogRepository(db)
 	chatUserRepo := repository.NewChatUserRepository(db)
 	sessionContactRepo := repository.NewChatSessionContactRepository(db)
+	agentStatusRepo := repository.NewAgentStatusRepository(redisClient)
+	agentSessionRepo := repository.NewAgentSessionRepository(db)
 
 	// Initialize use cases
-	authUsecase := usecase.NewAuthUsecase(userRepo, jwtUtil)
+	authUsecase := usecase.NewAuthUsecase(userRepo, agentSessionRepo, jwtUtil)
 	chatUsecase := usecase.NewChatUsecase(sessionRepo, messageRepo, userRepo, logRepo, chatUserRepo, sessionContactRepo)
 	analyticsUsecase := usecase.NewAnalyticsUsecase(sessionRepo, messageRepo, userRepo)
 	userUsecase := usecase.NewUserUsecase(userRepo)
@@ -57,12 +59,16 @@ func main() {
 	// Initialize Kafka service
 	kafkaService := service.NewKafkaService()
 
+	// Initialize agent status service
+	agentStatusService := service.NewAgentStatusService(agentStatusRepo, userRepo)
+
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authUsecase)
 	chatHandler := handler.NewChatHandler(chatUsecase, kafkaService)
 	analyticsHandler := handler.NewAnalyticsHandler(analyticsUsecase)
 	userHandler := handler.NewUserHandler(userUsecase)
 	emailHandler := handler.NewEmailHandler(emailService)
+	agentStatusHandler := handler.NewAgentStatusHandler(agentStatusService)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authUsecase)
@@ -96,7 +102,7 @@ func main() {
 	}))
 
 	// Setup routes (tanpa wsHandler)
-	routes.SetupRoutes(app, authHandler, chatHandler, analyticsHandler, userHandler, emailHandler, authMiddleware)
+	routes.SetupRoutes(app, authHandler, chatHandler, analyticsHandler, userHandler, emailHandler, agentStatusHandler, authMiddleware)
 
 	// Start server
 	serverAddr := cfg.Server.Host + ":" + cfg.Server.Port

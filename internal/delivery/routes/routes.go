@@ -13,6 +13,7 @@ func SetupRoutes(
 	analyticsHandler *handler.AnalyticsHandler,
 	userHandler *handler.UserHandler,
 	emailHandler *handler.EmailHandler,
+	agentStatusHandler *handler.AgentStatusHandler,
 	authMiddleware *middleware.AuthMiddleware,
 ) {
 	// Health check
@@ -100,4 +101,18 @@ func SetupRoutes(
 	email.Post("/password-reset", emailHandler.SendPasswordResetEmail)
 	email.Post("/chat-transcript", emailHandler.SendChatTranscriptEmail)
 	email.Post("/custom", emailHandler.SendCustomEmail)
+
+	// Agent status routes
+	agentStatus := api.Group("/agent-status")
+	agentStatus.Use(authMiddleware.RequireAuth())
+
+	// Agent heartbeat (for agents and admins)
+	agentStatus.Post("/heartbeat", authMiddleware.RequireAgent(), agentStatusHandler.AgentHeartbeat)
+	agentStatus.Post("/offline", authMiddleware.RequireAgent(), agentStatusHandler.SetAgentOffline)
+
+	// Admin routes for viewing agent status
+	agentStatus.Get("/online", agentStatusHandler.GetOnlineAgents)
+	agentStatus.Get("/department/:department_id", agentStatusHandler.GetOnlineAgentsByDepartment)
+	agentStatus.Get("/agent/:agent_id", agentStatusHandler.GetAgentStatus)
+	agentStatus.Get("/stats", agentStatusHandler.GetDepartmentStats)
 }

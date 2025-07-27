@@ -216,6 +216,159 @@ http://localhost:8080/api
 
 ---
 
+## 9. Agent Status Routes
+
+### Base Path: `/api/agent-status`
+**Auth Required**: Bearer Token (Agent/Admin only)
+
+#### Agent Heartbeat
+- **POST** `/api/agent-status/heartbeat`
+- **Description**: Mengirim heartbeat untuk menandai agent sebagai online
+- **Auth**: Agent/Admin only
+- **Request Body** (Optional):
+```json
+{
+  "status": "online"  // Optional: "online", "busy", "away" - defaults to "online"
+}
+```
+- **Response**:
+```json
+{
+  "success": true,
+  "message": "Heartbeat updated successfully",
+  "data": {
+    "agent_id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "online"
+  }
+}
+```
+
+#### Set Agent Offline
+- **POST** `/api/agent-status/offline`
+- **Description**: Menandai agent sebagai offline (biasanya saat logout)
+- **Auth**: Agent/Admin only
+- **Response**:
+```json
+{
+  "success": true,
+  "message": "Agent set offline successfully",
+  "data": {
+    "agent_id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "offline"
+  }
+}
+```
+
+#### Get All Online Agents
+- **GET** `/api/agent-status/online`
+- **Description**: Mendapatkan daftar semua agent yang sedang online
+- **Auth**: Any authenticated user
+- **Response**:
+```json
+{
+  "success": true,
+  "message": "Online agents retrieved successfully",
+  "data": {
+    "agents": [
+      {
+        "agent_id": "550e8400-e29b-41d4-a716-446655440000",
+        "name": "John Doe",
+        "email": "john@example.com",
+        "department_id": "660e8400-e29b-41d4-a716-446655440000",
+        "department": "Customer Support",
+        "status": "online",
+        "last_heartbeat": "2025-01-27T10:30:00Z"
+      }
+    ],
+    "count": 1
+  }
+}
+```
+
+#### Get Online Agents by Department
+- **GET** `/api/agent-status/department/{department_id}`
+- **Description**: Mendapatkan agent online berdasarkan department
+- **Auth**: Any authenticated user
+- **Response**:
+```json
+{
+  "success": true,
+  "message": "Online agents by department retrieved successfully",
+  "data": {
+    "department_id": "660e8400-e29b-41d4-a716-446655440000",
+    "agents": [
+      {
+        "agent_id": "550e8400-e29b-41d4-a716-446655440000",
+        "name": "John Doe",
+        "email": "john@example.com",
+        "department_id": "660e8400-e29b-41d4-a716-446655440000",
+        "department": "Customer Support",
+        "status": "online",
+        "last_heartbeat": "2025-01-27T10:30:00Z"
+      }
+    ],
+    "count": 1
+  }
+}
+```
+
+#### Get Specific Agent Status
+- **GET** `/api/agent-status/agent/{agent_id}`
+- **Description**: Mendapatkan status spesifik agent
+- **Auth**: Any authenticated user
+- **Response** (Online):
+```json
+{
+  "success": true,
+  "message": "Agent status retrieved successfully",
+  "data": {
+    "agent": {
+      "agent_id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "department_id": "660e8400-e29b-41d4-a716-446655440000",
+      "department": "Customer Support",
+      "status": "online",
+      "last_heartbeat": "2025-01-27T10:30:00Z"
+    },
+    "online": true
+  }
+}
+```
+- **Response** (Offline):
+```json
+{
+  "success": false,
+  "message": "Agent is not online",
+  "data": {
+    "agent_id": "550e8400-e29b-41d4-a716-446655440000",
+    "online": false
+  }
+}
+```
+
+#### Get Department Statistics
+- **GET** `/api/agent-status/stats`
+- **Description**: Mendapatkan statistik agent online per department
+- **Auth**: Any authenticated user
+- **Response**:
+```json
+{
+  "success": true,
+  "message": "Department statistics retrieved successfully",
+  "data": {
+    "departments": {
+      "Customer Support": 5,
+      "Technical Support": 3,
+      "Sales": 2,
+      "No Department": 1
+    }
+  }
+}
+```
+
+---
+
 ## Chat Flow Documentation
 
 ### Flow 1: Anonymous User Chat

@@ -121,12 +121,12 @@ CREATE TABLE chat_session_tags (
     UNIQUE(session_id, tag_id)
 );
 
--- Create agent_status table
+-- Create agent_status table (tracks login sessions)
 CREATE TABLE agent_status (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     agent_id UUID NOT NULL REFERENCES users(id),
-    status VARCHAR(50) NOT NULL CHECK (status IN ('online', 'offline', 'busy', 'away')),
-    last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) NOT NULL CHECK (status IN ('logged_in', 'logged_out')),
+    last_login_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,

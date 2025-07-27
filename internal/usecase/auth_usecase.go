@@ -10,15 +10,22 @@ import (
 	"github.com/novianakbar/livechat-be/pkg/utils"
 )
 
-type AuthUsecase struct {
-	userRepo domain.UserRepository
-	jwtUtil  *utils.JWTUtil
+type AgentSessionRepository interface {
+	SetAgentLoggedIn(ctx context.Context, agentID uuid.UUID) error
+	SetAgentLoggedOut(ctx context.Context, agentID uuid.UUID) error
 }
 
-func NewAuthUsecase(userRepo domain.UserRepository, jwtUtil *utils.JWTUtil) *AuthUsecase {
+type AuthUsecase struct {
+	userRepo         domain.UserRepository
+	agentSessionRepo AgentSessionRepository
+	jwtUtil          *utils.JWTUtil
+}
+
+func NewAuthUsecase(userRepo domain.UserRepository, agentSessionRepo AgentSessionRepository, jwtUtil *utils.JWTUtil) *AuthUsecase {
 	return &AuthUsecase{
-		userRepo: userRepo,
-		jwtUtil:  jwtUtil,
+		userRepo:         userRepo,
+		agentSessionRepo: agentSessionRepo,
+		jwtUtil:          jwtUtil,
 	}
 }
 
@@ -51,6 +58,14 @@ func (uc *AuthUsecase) Login(ctx context.Context, req *domain.LoginRequest, clie
 		return nil, err
 	}
 
+	// Track agent login in database if user is agent or admin
+	if user.Role == "agent" || user.Role == "admin" {
+		if err := uc.agentSessionRepo.SetAgentLoggedIn(ctx, user.ID); err != nil {
+			// Log error but don't fail login process
+			// TODO: Add proper logging
+		}
+	}
+
 	// TODO: Store session info in Redis/database for revocation support
 
 	// Hide password from response
@@ -66,6 +81,20 @@ func (uc *AuthUsecase) Login(ctx context.Context, req *domain.LoginRequest, clie
 }
 
 func (uc *AuthUsecase) Logout(ctx context.Context, userID uuid.UUID, accessToken, refreshToken string) error {
+	// Get user info to check role
+	user, err := uc.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Track agent logout in database if user is agent or admin
+	if user != nil && (user.Role == "agent" || user.Role == "admin") {
+		if err := uc.agentSessionRepo.SetAgentLoggedOut(ctx, userID); err != nil {
+			// Log error but don't fail logout process
+			// TODO: Add proper logging
+		}
+	}
+
 	// TODO: Implement token blacklisting
 	// For now, we'll just validate that the tokens exist and are from the right user
 

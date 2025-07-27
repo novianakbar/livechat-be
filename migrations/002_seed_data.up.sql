@@ -107,33 +107,33 @@ VALUES
         '550e8400-e29b-41d4-a716-446655440004'
     );
 
--- Insert default agent status
+-- Insert default agent status (login session tracking)
 INSERT INTO
-    agent_status (agent_id, status, last_active_at)
+    agent_status (agent_id, status, last_login_at)
 VALUES
     (
         '550e8400-e29b-41d4-a716-446655440011',
-        'offline',
+        'logged_out',
         CURRENT_TIMESTAMP
     ),
     (
         '550e8400-e29b-41d4-a716-446655440012',
-        'offline',
+        'logged_out',
         CURRENT_TIMESTAMP
     ),
     (
         '550e8400-e29b-41d4-a716-446655440013',
-        'offline',
+        'logged_out',
         CURRENT_TIMESTAMP
     ),
     (
         '550e8400-e29b-41d4-a716-446655440014',
-        'offline',
+        'logged_out',
         CURRENT_TIMESTAMP
     ),
     (
         '550e8400-e29b-41d4-a716-446655440015',
-        'offline',
+        'logged_out',
         CURRENT_TIMESTAMP
     );
 
