@@ -7,6 +7,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/novianakbar/livechat-shared v0.0.0
 	github.com/redis/go-redis/v9 v9.4.0
 	github.com/segmentio/kafka-go v0.4.27
 	github.com/sendgrid/sendgrid-go v3.16.1+incompatible
@@ -40,3 +41,5 @@ require (
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 )
+
+replace github.com/novianakbar/livechat-shared => ../livechat-shared
