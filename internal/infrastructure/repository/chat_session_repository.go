@@ -29,7 +29,7 @@ func (r *chatSessionRepository) GetByID(ctx context.Context, id uuid.UUID) (*dom
 		Preload("Agent").
 		Preload("Department").
 		Preload("Contact").
-		First(&session, "id = ? AND deleted_at IS NULL", id).Error; err != nil {
+		First(&session, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -45,7 +45,7 @@ func (r *chatSessionRepository) GetByChatUserID(ctx context.Context, chatUserID 
 		Preload("Agent").
 		Preload("Department").
 		Preload("Contact").
-		Where("chat_user_id = ? AND deleted_at IS NULL", chatUserID).
+		Where("chat_user_id = ?", chatUserID).
 		Order("created_at DESC").
 		Find(&sessions).Error; err != nil {
 		return nil, err
@@ -237,9 +237,9 @@ func (r *chatSessionRepository) GetSessionsWithMessages(ctx context.Context, cha
 		Preload("Department").
 		Preload("Contact").
 		Preload("Messages", func(db *gorm.DB) *gorm.DB {
-			return db.Where("deleted_at IS NULL").Order("created_at ASC")
+			return db.Order("created_at ASC")
 		}).
-		Where("chat_user_id = ? AND deleted_at IS NULL", chatUserID).
+		Where("chat_user_id = ?", chatUserID).
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -256,7 +256,7 @@ func (r *chatSessionRepository) GetSessionHistory(ctx context.Context, chatUserI
 		Preload("Agent").
 		Preload("Department").
 		Preload("Contact").
-		Where("chat_user_id = ? AND deleted_at IS NULL", chatUserID).
+		Where("chat_user_id = ?", chatUserID).
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).

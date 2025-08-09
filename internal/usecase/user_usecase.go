@@ -19,12 +19,19 @@ func NewUserUsecase(userRepo domain.UserRepository) *UserUsecase {
 
 func (uc *UserUsecase) GetUsers(ctx context.Context, page, limit int, role string, departmentID *uuid.UUID) ([]*domain.User, int, error) {
 	offset := (page - 1) * limit
-	users, err := uc.userRepo.GetWithPagination(ctx, offset, limit, role, departmentID)
+
+	var departmentIDStr *string
+	if departmentID != nil {
+		idStr := departmentID.String()
+		departmentIDStr = &idStr
+	}
+
+	users, err := uc.userRepo.GetWithPagination(ctx, offset, limit, role, departmentIDStr)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	total, err := uc.userRepo.Count(ctx, role, departmentID)
+	total, err := uc.userRepo.Count(ctx, role, departmentIDStr)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -33,7 +40,7 @@ func (uc *UserUsecase) GetUsers(ctx context.Context, page, limit int, role strin
 }
 
 func (uc *UserUsecase) GetUser(ctx context.Context, userID uuid.UUID) (*domain.User, error) {
-	user, err := uc.userRepo.GetByID(ctx, userID)
+	user, err := uc.userRepo.GetByID(ctx, userID.String())
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -11,8 +12,8 @@ import (
 )
 
 type AgentSessionRepository interface {
-	SetAgentLoggedIn(ctx context.Context, agentID uuid.UUID) error
-	SetAgentLoggedOut(ctx context.Context, agentID uuid.UUID) error
+	SetAgentLoggedIn(ctx context.Context, agentID string) error
+	SetAgentLoggedOut(ctx context.Context, agentID string) error
 }
 
 type AuthUsecase struct {
@@ -53,7 +54,11 @@ func (uc *AuthUsecase) Login(ctx context.Context, req *domain.LoginRequest, clie
 	}
 
 	// Generate JWT token pair
-	tokenPair, err := uc.jwtUtil.GenerateTokenPair(user.ID, user.Email, user.Role, user.DepartmentID)
+	var departmentID *string
+	if user.DepartmentID.Valid {
+		departmentID = &user.DepartmentID.String
+	}
+	tokenPair, err := uc.jwtUtil.GenerateTokenPair(user.ID, user.Email, user.Role, departmentID)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +85,7 @@ func (uc *AuthUsecase) Login(ctx context.Context, req *domain.LoginRequest, clie
 	}, nil
 }
 
-func (uc *AuthUsecase) Logout(ctx context.Context, userID uuid.UUID, accessToken, refreshToken string) error {
+func (uc *AuthUsecase) Logout(ctx context.Context, userID string, accessToken, refreshToken string) error {
 	// Get user info to check role
 	user, err := uc.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -133,14 +138,23 @@ func (uc *AuthUsecase) Register(ctx context.Context, req *domain.RegisterRequest
 	}
 
 	// Create user
+	uuidV7, _ := uuid.NewV7()
+	var departmentID sql.NullString
+	if req.DepartmentID != nil {
+		departmentID = sql.NullString{
+			String: req.DepartmentID.String(),
+			Valid:  true,
+		}
+	}
+
 	user := &domain.User{
-		ID:           uuid.New(),
+		ID:           uuidV7.String(),
 		Email:        req.Email,
 		Password:     hashedPassword,
 		Name:         req.Name,
 		Role:         req.Role,
 		IsActive:     true,
-		DepartmentID: req.DepartmentID,
+		DepartmentID: departmentID,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -155,7 +169,7 @@ func (uc *AuthUsecase) Register(ctx context.Context, req *domain.RegisterRequest
 	return user, nil
 }
 
-func (uc *AuthUsecase) GetUserByID(ctx context.Context, userID uuid.UUID) (*domain.User, error) {
+func (uc *AuthUsecase) GetUserByID(ctx context.Context, userID string) (*domain.User, error) {
 	user, err := uc.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -193,7 +207,11 @@ func (uc *AuthUsecase) RefreshToken(ctx context.Context, req *domain.RefreshToke
 	}
 
 	// Generate new token pair
-	tokenPair, err := uc.jwtUtil.GenerateTokenPair(user.ID, user.Email, user.Role, user.DepartmentID)
+	var departmentID *string
+	if user.DepartmentID.Valid {
+		departmentID = &user.DepartmentID.String
+	}
+	tokenPair, err := uc.jwtUtil.GenerateTokenPair(user.ID, user.Email, user.Role, departmentID)
 	if err != nil {
 		return nil, err
 	}

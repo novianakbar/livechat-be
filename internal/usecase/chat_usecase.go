@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -64,10 +65,19 @@ func (uc *ChatUsecase) SendMessage(ctx context.Context, req *domain.SendMessageR
 	}
 
 	// Create message
+	uuidV7, _ := uuid.NewV7()
+	var senderIDStr sql.NullString
+	if senderID != nil {
+		senderIDStr = sql.NullString{
+			String: senderID.String(),
+			Valid:  true,
+		}
+	}
+
 	message := &domain.ChatMessage{
-		ID:          uuid.New(),
-		SessionID:   req.SessionID,
-		SenderID:    senderID,
+		ID:          uuidV7.String(),
+		SessionID:   req.SessionID.String(),
+		SenderID:    senderIDStr,
 		SenderType:  senderType,
 		Message:     req.Message,
 		MessageType: req.MessageType,
@@ -92,12 +102,24 @@ func (uc *ChatUsecase) SendMessage(ctx context.Context, req *domain.SendMessageR
 		}
 
 		// Log response
+		uuidV7Log, _ := uuid.NewV7()
+		var userIDStr sql.NullString
+		if senderID != nil {
+			userIDStr = sql.NullString{
+				String: senderID.String(),
+				Valid:  true,
+			}
+		}
+
 		log := &domain.ChatLog{
-			ID:        uuid.New(),
+			ID:        uuidV7Log.String(),
 			SessionID: session.ID,
 			Action:    "response",
-			Details:   "Agent responded to customer",
-			UserID:    senderID,
+			Details: sql.NullString{
+				String: "Agent responded to customer",
+				Valid:  true,
+			},
+			UserID:    userIDStr,
 			CreatedAt: time.Now(),
 		}
 
@@ -106,8 +128,9 @@ func (uc *ChatUsecase) SendMessage(ctx context.Context, req *domain.SendMessageR
 		}
 	}
 
+	messageUUID, _ := uuid.Parse(message.ID)
 	return &domain.SendMessageResponse{
-		MessageID: message.ID,
+		MessageID: messageUUID,
 		Timestamp: message.CreatedAt,
 		Status:    "sent",
 	}, nil
@@ -125,7 +148,7 @@ func (uc *ChatUsecase) AssignAgent(ctx context.Context, req *domain.AssignAgentR
 	}
 
 	// Validate agent exists
-	agent, err := uc.userRepo.GetByID(ctx, req.AgentID)
+	agent, err := uc.userRepo.GetByID(ctx, req.AgentID.String())
 	if err != nil {
 		return err
 	}
@@ -139,7 +162,10 @@ func (uc *ChatUsecase) AssignAgent(ctx context.Context, req *domain.AssignAgentR
 	}
 
 	// Update session
-	session.AgentID = &req.AgentID
+	session.AgentID = sql.NullString{
+		String: req.AgentID.String(),
+		Valid:  true,
+	}
 	session.DepartmentID = agent.DepartmentID
 	session.UpdatedAt = time.Now()
 
@@ -148,12 +174,19 @@ func (uc *ChatUsecase) AssignAgent(ctx context.Context, req *domain.AssignAgentR
 	}
 
 	// Log assignment
+	uuidV7Log2, _ := uuid.NewV7()
 	log := &domain.ChatLog{
-		ID:        uuid.New(),
+		ID:        uuidV7Log2.String(),
 		SessionID: session.ID,
 		Action:    "assigned",
-		Details:   "Agent assigned to chat session",
-		UserID:    &req.AgentID,
+		Details: sql.NullString{
+			String: "Agent assigned to chat session",
+			Valid:  true,
+		},
+		UserID: sql.NullString{
+			String: req.AgentID.String(),
+			Valid:  true,
+		},
 		CreatedAt: time.Now(),
 	}
 
@@ -185,12 +218,21 @@ func (uc *ChatUsecase) CloseSession(ctx context.Context, sessionID uuid.UUID, re
 	}
 
 	// Log closure
+	uuidV7Close, _ := uuid.NewV7()
 	log := &domain.ChatLog{
-		ID:        uuid.New(),
-		SessionID: sessionID,
+		ID:        uuidV7Close.String(),
+		SessionID: sessionID.String(),
 		Action:    "closed",
-		Details:   reason,
-		UserID:    userID,
+		Details: sql.NullString{
+			String: reason,
+			Valid:  true,
+		},
+		UserID: func() sql.NullString {
+			if userID != nil {
+				return sql.NullString{String: userID.String(), Valid: true}
+			}
+			return sql.NullString{Valid: false}
+		}(),
 		CreatedAt: time.Now(),
 	}
 
@@ -312,7 +354,10 @@ func (uc *ChatUsecase) AutoAssignAgent(ctx context.Context, sessionID uuid.UUID)
 		return errors.New("chat session not found")
 	}
 
-	session.AgentID = &agentID
+	session.AgentID = sql.NullString{
+		String: agentID,
+		Valid:  true,
+	}
 	session.Status = "active"
 	session.UpdatedAt = time.Now()
 
@@ -321,12 +366,19 @@ func (uc *ChatUsecase) AutoAssignAgent(ctx context.Context, sessionID uuid.UUID)
 	}
 
 	// Log assignment
+	uuidV7AutoAssign, _ := uuid.NewV7()
 	log := &domain.ChatLog{
-		ID:        uuid.New(),
+		ID:        uuidV7AutoAssign.String(),
 		SessionID: session.ID,
 		Action:    "auto_assigned",
-		Details:   "Agent automatically assigned to chat session",
-		UserID:    &agentID,
+		Details: sql.NullString{
+			String: "Agent automatically assigned to chat session",
+			Valid:  true,
+		},
+		UserID: sql.NullString{
+			String: agentID,
+			Valid:  true,
+		},
 		CreatedAt: time.Now(),
 	}
 
@@ -365,22 +417,37 @@ func (uc *ChatUsecase) StartOSSChat(ctx context.Context, req *domain.StartChatRe
 
 	// Create new user if not found
 	if chatUser == nil {
+		uuidV7ChatUser, _ := uuid.NewV7()
 		chatUser = &domain.ChatUser{
-			ID:        uuid.New(),
+			ID:        uuidV7ChatUser.String(),
 			IPAddress: ipAddress,
-			UserAgent: req.UserAgent,
+			UserAgent: func() sql.NullString {
+				if req.UserAgent != nil {
+					return sql.NullString{String: *req.UserAgent, Valid: true}
+				}
+				return sql.NullString{Valid: false}
+			}(),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
 
 		if req.BrowserUUID != nil {
-			chatUser.BrowserUUID = req.BrowserUUID
+			chatUser.BrowserUUID = sql.NullString{
+				String: req.BrowserUUID.String(),
+				Valid:  true,
+			}
 			chatUser.IsAnonymous = true
 		}
 
 		if req.OSSUserID != nil && req.Email != nil {
-			chatUser.OSSUserID = req.OSSUserID
-			chatUser.Email = req.Email
+			chatUser.OSSUserID = sql.NullString{
+				String: *req.OSSUserID,
+				Valid:  true,
+			}
+			chatUser.Email = sql.NullString{
+				String: *req.Email,
+				Valid:  true,
+			}
 			chatUser.IsAnonymous = false
 		}
 
@@ -390,8 +457,9 @@ func (uc *ChatUsecase) StartOSSChat(ctx context.Context, req *domain.StartChatRe
 	}
 
 	// Create chat session
+	uuidV7Session, _ := uuid.NewV7()
 	session := &domain.ChatSession{
-		ID:         uuid.New(),
+		ID:         uuidV7Session.String(),
 		ChatUserID: chatUser.ID,
 		Topic:      req.Topic,
 		Status:     "waiting",
@@ -410,11 +478,15 @@ func (uc *ChatUsecase) StartOSSChat(ctx context.Context, req *domain.StartChatRe
 	}
 
 	// Log the chat start
+	uuidV7StartLog, _ := uuid.NewV7()
 	log := &domain.ChatLog{
-		ID:        uuid.New(),
+		ID:        uuidV7StartLog.String(),
 		SessionID: session.ID,
 		Action:    "started",
-		Details:   "Chat session started (OSS mode)",
+		Details: sql.NullString{
+			String: "Chat session started (OSS mode)",
+			Valid:  true,
+		},
 		CreatedAt: time.Now(),
 	}
 
@@ -423,23 +495,31 @@ func (uc *ChatUsecase) StartOSSChat(ctx context.Context, req *domain.StartChatRe
 	}
 
 	// Try to auto-assign an agent
-	if err := uc.AutoAssignAgent(ctx, session.ID); err != nil {
+	sessionUUID, _ := uuid.Parse(session.ID)
+	if err := uc.AutoAssignAgent(ctx, sessionUUID); err != nil {
 		log.Action = "auto_assignment_failed"
-		log.Details = "Failed to auto-assign agent: " + err.Error()
+		log.Details = sql.NullString{
+			String: "Failed to auto-assign agent: " + err.Error(),
+			Valid:  true,
+		}
 		uc.logRepo.Create(ctx, log)
 	} else {
 		// Reload session to get updated status
-		if updatedSession, err := uc.sessionRepo.GetByID(ctx, session.ID); err == nil && updatedSession != nil {
+		if updatedSession, err := uc.sessionRepo.GetByID(ctx, sessionUUID); err == nil && updatedSession != nil {
 			session = updatedSession
 		}
 	}
 
 	// Determine if contact information is required
-	requiresContact := chatUser.IsAnonymous || (chatUser.OSSUserID != nil && chatUser.Email != nil)
+	requiresContact := chatUser.IsAnonymous || (chatUser.OSSUserID.Valid && chatUser.Email.Valid)
+
+	// Parse IDs for DTO compatibility
+	sessionUUIDForDTO, _ := uuid.Parse(session.ID)
+	chatUserUUIDForDTO, _ := uuid.Parse(chatUser.ID)
 
 	return &domain.StartChatResponse{
-		SessionID:       session.ID,
-		ChatUserID:      chatUser.ID,
+		SessionID:       sessionUUIDForDTO,
+		ChatUserID:      chatUserUUIDForDTO,
 		Status:          session.Status,
 		Message:         "Chat session started successfully",
 		RequiresContact: requiresContact,
@@ -467,32 +547,64 @@ func (uc *ChatUsecase) SetSessionContact(ctx context.Context, req *domain.SetSes
 		// Update existing contact
 		existingContact.ContactName = req.ContactName
 		existingContact.ContactEmail = req.ContactEmail
-		existingContact.ContactPhone = req.ContactPhone
-		existingContact.Position = req.Position
-		existingContact.CompanyName = req.CompanyName
+		existingContact.ContactPhone = func() sql.NullString {
+			if req.ContactPhone != nil {
+				return sql.NullString{String: *req.ContactPhone, Valid: true}
+			}
+			return sql.NullString{Valid: false}
+		}()
+		existingContact.Position = func() sql.NullString {
+			if req.Position != nil {
+				return sql.NullString{String: *req.Position, Valid: true}
+			}
+			return sql.NullString{Valid: false}
+		}()
+		existingContact.CompanyName = func() sql.NullString {
+			if req.CompanyName != nil {
+				return sql.NullString{String: *req.CompanyName, Valid: true}
+			}
+			return sql.NullString{Valid: false}
+		}()
 		existingContact.UpdatedAt = time.Now()
 
 		if err := uc.contactRepo.Update(ctx, existingContact); err != nil {
 			return nil, err
 		}
 
+		contactUUIDForDTO, _ := uuid.Parse(existingContact.ID)
 		return &domain.SetSessionContactResponse{
-			ContactID: existingContact.ID,
+			ContactID: contactUUIDForDTO,
 			Message:   "Contact information updated successfully",
 		}, nil
 	}
 
 	// Create new contact
+	uuidV7Contact, _ := uuid.NewV7()
 	contact := &domain.ChatSessionContact{
-		ID:           uuid.New(),
-		SessionID:    req.SessionID,
+		ID:           uuidV7Contact.String(),
+		SessionID:    req.SessionID.String(),
 		ContactName:  req.ContactName,
 		ContactEmail: req.ContactEmail,
-		ContactPhone: req.ContactPhone,
-		Position:     req.Position,
-		CompanyName:  req.CompanyName,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		ContactPhone: func() sql.NullString {
+			if req.ContactPhone != nil {
+				return sql.NullString{String: *req.ContactPhone, Valid: true}
+			}
+			return sql.NullString{Valid: false}
+		}(),
+		Position: func() sql.NullString {
+			if req.Position != nil {
+				return sql.NullString{String: *req.Position, Valid: true}
+			}
+			return sql.NullString{Valid: false}
+		}(),
+		CompanyName: func() sql.NullString {
+			if req.CompanyName != nil {
+				return sql.NullString{String: *req.CompanyName, Valid: true}
+			}
+			return sql.NullString{Valid: false}
+		}(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	if err := uc.contactRepo.Create(ctx, contact); err != nil {
@@ -500,17 +612,22 @@ func (uc *ChatUsecase) SetSessionContact(ctx context.Context, req *domain.SetSes
 	}
 
 	// Log the contact information addition
+	uuidV7ContactLog, _ := uuid.NewV7()
 	log := &domain.ChatLog{
-		ID:        uuid.New(),
-		SessionID: req.SessionID,
+		ID:        uuidV7ContactLog.String(),
+		SessionID: req.SessionID.String(),
 		Action:    "contact_added",
-		Details:   "Contact information added",
+		Details: sql.NullString{
+			String: "Contact information added",
+			Valid:  true,
+		},
 		CreatedAt: time.Now(),
 	}
 	uc.logRepo.Create(ctx, log)
 
+	contactUUIDForDTO, _ := uuid.Parse(contact.ID)
 	return &domain.SetSessionContactResponse{
-		ContactID: contact.ID,
+		ContactID: contactUUIDForDTO,
 		Message:   "Contact information set successfully",
 	}, nil
 }
@@ -541,8 +658,9 @@ func (uc *ChatUsecase) LinkOSSUser(ctx context.Context, req *domain.LinkOSSUserR
 		return nil, err
 	}
 
+	chatUserUUIDForDTO, _ := uuid.Parse(updatedUser.ID)
 	return &domain.LinkOSSUserResponse{
-		ChatUserID: updatedUser.ID,
+		ChatUserID: chatUserUUIDForDTO,
 		Message:    "Successfully linked to OSS account",
 	}, nil
 }
@@ -577,7 +695,11 @@ func (uc *ChatUsecase) GetChatHistory(ctx context.Context, req *domain.GetChatHi
 	}
 
 	// Get sessions with messages
-	sessions, err := uc.sessionRepo.GetSessionsWithMessages(ctx, chatUser.ID, req.Limit, req.Offset)
+	chatUserUUID, err := uuid.Parse(chatUser.ID)
+	if err != nil {
+		return nil, errors.New("invalid chat user ID format")
+	}
+	sessions, err := uc.sessionRepo.GetSessionsWithMessages(ctx, chatUserUUID, req.Limit, req.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -585,19 +707,26 @@ func (uc *ChatUsecase) GetChatHistory(ctx context.Context, req *domain.GetChatHi
 	// Convert to response format
 	var sessionHistories []domain.ChatSessionHistory
 	for _, session := range sessions {
+		sessionUUID, _ := uuid.Parse(session.ID)
+
 		history := domain.ChatSessionHistory{
-			SessionID:  session.ID,
-			Topic:      session.Topic,
-			Status:     session.Status,
-			Priority:   session.Priority,
-			StartedAt:  session.StartedAt,
-			EndedAt:    session.EndedAt,
+			SessionID: sessionUUID,
+			Topic:     session.Topic,
+			Status:    session.Status,
+			Priority:  session.Priority,
+			StartedAt: session.StartedAt,
+			EndedAt: func() *time.Time {
+				if session.EndedAt.Valid {
+					return &session.EndedAt.Time
+				}
+				return nil
+			}(),
 			Agent:      session.Agent,
 			Department: session.Department,
 		}
 
 		// Get contact information
-		contact, err := uc.contactRepo.GetBySessionID(ctx, session.ID)
+		contact, err := uc.contactRepo.GetBySessionID(ctx, sessionUUID)
 		if err == nil && contact != nil {
 			history.Contact = contact
 		}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/google/uuid"
 	"github.com/novianakbar/livechat-be/internal/domain"
 	"gorm.io/gorm"
 )
@@ -24,7 +23,7 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 	return nil
 }
 
-func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
+func (r *userRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
 	var user domain.User
 	if err := r.db.WithContext(ctx).Preload("Department").First(&user, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -50,11 +49,11 @@ func (r *userRepository) Update(ctx context.Context, user *domain.User) error {
 	return r.db.WithContext(ctx).Save(user).Error
 }
 
-func (r *userRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (r *userRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&domain.User{}, "id = ?", id).Error
 }
 
-func (r *userRepository) GetAgentsByDepartment(ctx context.Context, departmentID uuid.UUID) ([]*domain.User, error) {
+func (r *userRepository) GetAgentsByDepartment(ctx context.Context, departmentID string) ([]*domain.User, error) {
 	var users []*domain.User
 	if err := r.db.WithContext(ctx).
 		Preload("Department").
@@ -65,7 +64,7 @@ func (r *userRepository) GetAgentsByDepartment(ctx context.Context, departmentID
 	return users, nil
 }
 
-func (r *userRepository) GetAvailableAgents(ctx context.Context, departmentID *uuid.UUID) ([]*domain.User, error) {
+func (r *userRepository) GetAvailableAgents(ctx context.Context, departmentID *string) ([]*domain.User, error) {
 	query := r.db.WithContext(ctx).Where("role = ? AND is_active = ?", "agent", true)
 
 	if departmentID != nil {
@@ -100,7 +99,7 @@ func (r *userRepository) CountOnlineAgents(ctx context.Context) (int64, error) {
 	return int64(float64(count) * 0.8), nil
 }
 
-func (r *userRepository) GetWithPagination(ctx context.Context, offset, limit int, role string, departmentID *uuid.UUID) ([]*domain.User, error) {
+func (r *userRepository) GetWithPagination(ctx context.Context, offset, limit int, role string, departmentID *string) ([]*domain.User, error) {
 	query := r.db.WithContext(ctx).Preload("Department")
 
 	if role != "" {
@@ -123,7 +122,7 @@ func (r *userRepository) GetWithPagination(ctx context.Context, offset, limit in
 	return users, nil
 }
 
-func (r *userRepository) Count(ctx context.Context, role string, departmentID *uuid.UUID) (int, error) {
+func (r *userRepository) Count(ctx context.Context, role string, departmentID *string) (int, error) {
 	query := r.db.WithContext(ctx).Model(&domain.User{})
 
 	if role != "" {

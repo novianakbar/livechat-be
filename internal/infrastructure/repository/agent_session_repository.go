@@ -20,7 +20,7 @@ func NewAgentSessionRepository(db *gorm.DB) *AgentSessionRepository {
 }
 
 // SetAgentLoggedIn records agent login in database
-func (r *AgentSessionRepository) SetAgentLoggedIn(ctx context.Context, agentID uuid.UUID) error {
+func (r *AgentSessionRepository) SetAgentLoggedIn(ctx context.Context, agentID string) error {
 	agentStatus := &entities.AgentStatus{
 		AgentID: agentID,
 		Status:  "logged_in",
@@ -40,7 +40,7 @@ func (r *AgentSessionRepository) SetAgentLoggedIn(ctx context.Context, agentID u
 }
 
 // SetAgentLoggedOut records agent logout in database
-func (r *AgentSessionRepository) SetAgentLoggedOut(ctx context.Context, agentID uuid.UUID) error {
+func (r *AgentSessionRepository) SetAgentLoggedOut(ctx context.Context, agentID string) error {
 	err := r.db.WithContext(ctx).
 		Model(&entities.AgentStatus{}).
 		Where("agent_id = ?", agentID).

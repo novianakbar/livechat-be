@@ -40,6 +40,7 @@ require (
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
+	gorm.io/plugin/soft_delete v1.2.1 // indirect
 )
 
 replace github.com/novianakbar/livechat-shared => ../livechat-shared

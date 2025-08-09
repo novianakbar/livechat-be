@@ -9,11 +9,11 @@ import (
 )
 
 type JWTClaims struct {
-	UserID       uuid.UUID  `json:"user_id"`
-	Email        string     `json:"email"`
-	Role         string     `json:"role"`
-	DepartmentID *uuid.UUID `json:"department_id"`
-	TokenType    string     `json:"token_type"` // "access" or "refresh"
+	UserID       string  `json:"user_id"`
+	Email        string  `json:"email"`
+	Role         string  `json:"role"`
+	DepartmentID *string `json:"department_id"`
+	TokenType    string  `json:"token_type"` // "access" or "refresh"
 	jwt.RegisteredClaims
 }
 
@@ -38,7 +38,7 @@ func NewJWTUtil(secret string, accessTokenDuration, refreshTokenDuration time.Du
 	}
 }
 
-func (j *JWTUtil) GenerateTokenPair(userID uuid.UUID, email, role string, departmentID *uuid.UUID) (*TokenPair, error) {
+func (j *JWTUtil) GenerateTokenPair(userID string, email, role string, departmentID *string) (*TokenPair, error) {
 	now := time.Now()
 
 	// Generate Access Token (15 minutes)
@@ -53,7 +53,7 @@ func (j *JWTUtil) GenerateTokenPair(userID uuid.UUID, email, role string, depart
 			ExpiresAt: jwt.NewNumericDate(accessExpirationTime),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
-			Subject:   userID.String(),
+			Subject:   userID,
 			ID:        uuid.New().String(),
 		},
 	}
@@ -76,7 +76,7 @@ func (j *JWTUtil) GenerateTokenPair(userID uuid.UUID, email, role string, depart
 			ExpiresAt: jwt.NewNumericDate(refreshExpirationTime),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
-			Subject:   userID.String(),
+			Subject:   userID,
 			ID:        uuid.New().String(),
 		},
 	}
@@ -159,7 +159,12 @@ func (j *JWTUtil) RefreshTokenPair(refreshTokenString string) (*TokenPair, error
 
 // Legacy support - untuk backward compatibility
 func (j *JWTUtil) GenerateToken(userID uuid.UUID, email, role string, departmentID *uuid.UUID) (string, time.Time, error) {
-	tokenPair, err := j.GenerateTokenPair(userID, email, role, departmentID)
+	var deptIDStr *string
+	if departmentID != nil {
+		deptStr := departmentID.String()
+		deptIDStr = &deptStr
+	}
+	tokenPair, err := j.GenerateTokenPair(userID.String(), email, role, deptIDStr)
 	if err != nil {
 		return "", time.Time{}, err
 	}

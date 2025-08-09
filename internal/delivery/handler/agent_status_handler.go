@@ -57,7 +57,16 @@ func (h *AgentStatusHandler) AgentHeartbeat(c *fiber.Ctx) error {
 	}
 
 	// Update agent heartbeat
-	if err := h.agentStatusService.UpdateAgentHeartbeat(c.Context(), user.ID, req.Status); err != nil {
+	userUUID, err := uuid.Parse(user.ID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Invalid user ID format",
+			Error:   err.Error(),
+		})
+	}
+
+	if err := h.agentStatusService.UpdateAgentHeartbeat(c.Context(), userUUID, req.Status); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(domain.ApiResponse{
 			Success: false,
 			Message: "Failed to update agent heartbeat",
@@ -217,7 +226,16 @@ func (h *AgentStatusHandler) SetAgentOffline(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.agentStatusService.SetAgentOffline(c.Context(), user.ID); err != nil {
+	userUUID, err := uuid.Parse(user.ID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Invalid user ID format",
+			Error:   err.Error(),
+		})
+	}
+
+	if err := h.agentStatusService.SetAgentOffline(c.Context(), userUUID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(domain.ApiResponse{
 			Success: false,
 			Message: "Failed to set agent offline",

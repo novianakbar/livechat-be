@@ -23,13 +23,13 @@ func NewAgentStatusRepository(redisClient *redis.Client) *AgentStatusRepository 
 
 // AgentOnlineStatus represents agent status stored in Redis
 type AgentOnlineStatus struct {
-	AgentID       uuid.UUID  `json:"agent_id"`
-	Name          string     `json:"name"`
-	Email         string     `json:"email"`
-	DepartmentID  *uuid.UUID `json:"department_id"`
-	Department    string     `json:"department"`
-	Status        string     `json:"status"` // online, busy, away
-	LastHeartbeat time.Time  `json:"last_heartbeat"`
+	AgentID       string    `json:"agent_id"`
+	Name          string    `json:"name"`
+	Email         string    `json:"email"`
+	DepartmentID  *string   `json:"department_id"`
+	Department    string    `json:"department"`
+	Status        string    `json:"status"` // online, busy, away
+	LastHeartbeat time.Time `json:"last_heartbeat"`
 }
 
 const (
@@ -41,11 +41,16 @@ const (
 
 // SetAgentOnline sets agent status as online with heartbeat
 func (r *AgentStatusRepository) SetAgentOnline(ctx context.Context, agent *domain.User, status string) error {
+	var departmentID *string
+	if agent.DepartmentID.Valid {
+		departmentID = &agent.DepartmentID.String
+	}
+
 	agentStatus := AgentOnlineStatus{
 		AgentID:       agent.ID,
 		Name:          agent.Name,
 		Email:         agent.Email,
-		DepartmentID:  agent.DepartmentID,
+		DepartmentID:  departmentID,
 		Status:        status,
 		LastHeartbeat: time.Now(),
 	}
@@ -63,17 +68,17 @@ func (r *AgentStatusRepository) SetAgentOnline(ctx context.Context, agent *domai
 	pipe := r.redisClient.Pipeline()
 
 	// Set individual agent status with TTL
-	agentKey := fmt.Sprintf("%s%s", agentOnlinePrefix, agent.ID.String())
+	agentKey := fmt.Sprintf("%s%s", agentOnlinePrefix, agent.ID)
 	pipe.Set(ctx, agentKey, statusJSON, agentStatusTTL)
 
 	// Add to all agents set
-	pipe.SAdd(ctx, allAgentsKey, agent.ID.String())
+	pipe.SAdd(ctx, allAgentsKey, agent.ID)
 	pipe.Expire(ctx, allAgentsKey, agentStatusTTL*2) // Keep the set longer
 
 	// Add to department-specific set if agent has department
-	if agent.DepartmentID != nil {
-		deptKey := fmt.Sprintf("%s%s", agentsByDeptPrefix, agent.DepartmentID.String())
-		pipe.SAdd(ctx, deptKey, agent.ID.String())
+	if agent.DepartmentID.Valid {
+		deptKey := fmt.Sprintf("%s%s", agentsByDeptPrefix, agent.DepartmentID.String)
+		pipe.SAdd(ctx, deptKey, agent.ID)
 		pipe.Expire(ctx, deptKey, agentStatusTTL*2)
 	}
 

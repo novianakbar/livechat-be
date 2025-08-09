@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/novianakbar/livechat-be/internal/delivery/middleware"
 	"github.com/novianakbar/livechat-be/internal/domain"
+	"github.com/novianakbar/livechat-be/internal/mappers"
 	"github.com/novianakbar/livechat-be/internal/service"
 	"github.com/novianakbar/livechat-be/internal/usecase"
 )
@@ -121,7 +122,15 @@ func (h *ChatHandler) SendMessage(c *fiber.Ctx) error {
 	senderType := "customer"
 
 	if user := middleware.GetUserFromContext(c); user != nil {
-		senderID = &user.ID
+		userUUID, err := uuid.Parse(user.ID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+				Success: false,
+				Message: "Invalid user ID format",
+				Error:   err.Error(),
+			})
+		}
+		senderID = &userUUID
 		senderType = "agent"
 	}
 
@@ -143,6 +152,10 @@ func (h *ChatHandler) SendMessage(c *fiber.Ctx) error {
 
 	// Publish message to Kafka
 	if h.kafkaService != nil && message != nil {
+		// Parse IDs for Kafka message
+		messageUUID, _ := uuid.Parse(message.ID)
+		sessionUUID, _ := uuid.Parse(message.SessionID)
+
 		// Create a clean message object without GORM associations for Kafka
 		kafkaMessage := struct {
 			ID          uuid.UUID  `json:"id"`
@@ -156,16 +169,28 @@ func (h *ChatHandler) SendMessage(c *fiber.Ctx) error {
 			CreatedAt   time.Time  `json:"created_at"`
 			UpdatedAt   time.Time  `json:"updated_at"`
 		}{
-			ID:          message.ID,
-			SessionID:   message.SessionID,
-			SenderID:    message.SenderID,
+			ID:        messageUUID,
+			SessionID: sessionUUID,
+			SenderID: func() *uuid.UUID {
+				if message.SenderID.Valid {
+					if parsed, err := uuid.Parse(message.SenderID.String); err == nil {
+						return &parsed
+					}
+				}
+				return nil
+			}(),
 			SenderType:  message.SenderType,
 			Message:     message.Message,
 			MessageType: message.MessageType,
 			Attachments: message.Attachments,
-			ReadAt:      message.ReadAt,
-			CreatedAt:   message.CreatedAt,
-			UpdatedAt:   message.UpdatedAt,
+			ReadAt: func() *time.Time {
+				if message.ReadAt.Valid {
+					return &message.ReadAt.Time
+				}
+				return nil
+			}(),
+			CreatedAt: message.CreatedAt,
+			UpdatedAt: message.UpdatedAt,
 		}
 
 		log.Printf("Publishing message to Kafka: ID=%s, SessionID=%s, SenderType=%s, Message=%s",
@@ -261,7 +286,14 @@ func (h *ChatHandler) CloseSession(c *fiber.Ctx) error {
 	}
 
 	userID := middleware.GetUserIDFromContext(c)
-	err := h.chatUsecase.CloseSession(c.Context(), req.SessionID, req.Reason, userID)
+	var userUUID *uuid.UUID
+	if userID != nil {
+		if parsed, err := uuid.Parse(*userID); err == nil {
+			userUUID = &parsed
+		}
+	}
+
+	err := h.chatUsecase.CloseSession(c.Context(), req.SessionID, req.Reason, userUUID)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
 			Success: false,
@@ -282,7 +314,7 @@ func (h *ChatHandler) CloseSession(c *fiber.Ctx) error {
 // @Tags Chat
 // @Produce json
 // @Param session_id path string true "Session ID"
-// @Success 200 {object} domain.ApiResponse{data=[]domain.ChatMessage}
+// @Success 200 {object} domain.ApiResponse{data=[]models.ChatMessageResponse}
 // @Failure 400 {object} domain.ApiResponse
 // @Router /api/chat/session/{session_id}/messages [get]
 func (h *ChatHandler) GetSessionMessages(c *fiber.Ctx) error {
@@ -305,10 +337,13 @@ func (h *ChatHandler) GetSessionMessages(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert entities to clean response using mapper
+	messageResponses := mappers.ChatMessagePointersToResponse(messages)
+
 	return c.JSON(domain.ApiResponse{
 		Success: true,
 		Message: "Messages retrieved successfully",
-		Data:    messages,
+		Data:    messageResponses,
 	})
 }
 
@@ -317,7 +352,7 @@ func (h *ChatHandler) GetSessionMessages(c *fiber.Ctx) error {
 // @Description Get all chat sessions waiting for agent assignment
 // @Tags Chat
 // @Produce json
-// @Success 200 {object} domain.ApiResponse{data=[]domain.ChatSession}
+// @Success 200 {object} domain.ApiResponse{data=[]models.ChatSessionMinimalResponse}
 // @Failure 500 {object} domain.ApiResponse
 // @Security BearerAuth
 // @Router /api/chat/waiting [get]
@@ -331,10 +366,13 @@ func (h *ChatHandler) GetWaitingSessions(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert entities to clean response using mapper
+	sessionResponses := mappers.ChatSessionsToMinimalResponse(sessions)
+
 	return c.JSON(domain.ApiResponse{
 		Success: true,
 		Message: "Waiting sessions retrieved successfully",
-		Data:    sessions,
+		Data:    sessionResponses,
 	})
 }
 
@@ -343,7 +381,7 @@ func (h *ChatHandler) GetWaitingSessions(c *fiber.Ctx) error {
 // @Description Get all active chat sessions
 // @Tags Chat
 // @Produce json
-// @Success 200 {object} domain.ApiResponse{data=[]domain.ChatSession}
+// @Success 200 {object} domain.ApiResponse{data=[]models.ChatSessionMinimalResponse}
 // @Failure 500 {object} domain.ApiResponse
 // @Security BearerAuth
 // @Router /api/chat/active [get]
@@ -357,10 +395,13 @@ func (h *ChatHandler) GetActiveSessions(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert entities to clean response using mapper
+	sessionResponses := mappers.ChatSessionsToMinimalResponse(sessions)
+
 	return c.JSON(domain.ApiResponse{
 		Success: true,
 		Message: "Active sessions retrieved successfully",
-		Data:    sessions,
+		Data:    sessionResponses,
 	})
 }
 
@@ -373,7 +414,7 @@ func (h *ChatHandler) GetActiveSessions(c *fiber.Ctx) error {
 // @Param page query int false "Page number"
 // @Param limit query int false "Items per page"
 // @Param status query string false "Session status filter"
-// @Success 200 {object} domain.PaginatedResponse{data=[]domain.ChatSession}
+// @Success 200 {object} domain.PaginatedResponse{data=[]models.ChatSessionMinimalResponse}
 // @Failure 500 {object} domain.ApiResponse
 // @Security BearerAuth
 // @Router /api/chat/agent/sessions [get]
@@ -392,7 +433,16 @@ func (h *ChatHandler) GetAgentSessions(c *fiber.Ctx) error {
 	limit := c.QueryInt("limit", 20)
 	status := c.Query("status")
 
-	sessions, total, err := h.chatUsecase.GetAgentSessionsWithPagination(c.Context(), user.ID, page, limit, status)
+	userUUID, err := uuid.Parse(user.ID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Invalid user ID format",
+			Error:   err.Error(),
+		})
+	}
+
+	sessions, total, err := h.chatUsecase.GetAgentSessionsWithPagination(c.Context(), userUUID, page, limit, status)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(domain.ApiResponse{
 			Success: false,
@@ -400,6 +450,9 @@ func (h *ChatHandler) GetAgentSessions(c *fiber.Ctx) error {
 			Error:   err.Error(),
 		})
 	}
+
+	// Convert entities to clean response using mapper
+	sessionResponses := mappers.ChatSessionsToMinimalResponse(sessions)
 
 	totalPages := (total + limit - 1) / limit
 	pagination := domain.PaginationInfo{
@@ -412,7 +465,7 @@ func (h *ChatHandler) GetAgentSessions(c *fiber.Ctx) error {
 	return c.JSON(domain.PaginatedResponse{
 		Success:    true,
 		Message:    "Agent sessions retrieved successfully",
-		Data:       sessions,
+		Data:       sessionResponses,
 		Pagination: pagination,
 	})
 }
@@ -428,7 +481,7 @@ func (h *ChatHandler) GetAgentSessions(c *fiber.Ctx) error {
 // @Param status query string false "Session status filter"
 // @Param agent_id query string false "Agent ID filter"
 // @Param department_id query string false "Department ID filter"
-// @Success 200 {object} domain.ApiResponse{data=[]domain.ChatSession}
+// @Success 200 {object} domain.ApiResponse{data=[]models.ChatSessionMinimalResponse}
 // @Failure 500 {object} domain.ApiResponse
 // @Router /api/chat/sessions [get]
 func (h *ChatHandler) GetSessions(c *fiber.Ctx) error {
@@ -474,6 +527,9 @@ func (h *ChatHandler) GetSessions(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert entities to clean response using mapper
+	sessionResponses := mappers.ChatSessionsToDetailResponse(sessions)
+
 	totalPages := (total + limit - 1) / limit
 	pagination := domain.PaginationInfo{
 		Page:       page,
@@ -485,7 +541,7 @@ func (h *ChatHandler) GetSessions(c *fiber.Ctx) error {
 	return c.JSON(domain.PaginatedResponse{
 		Success:    true,
 		Message:    "Sessions retrieved successfully",
-		Data:       sessions,
+		Data:       sessionResponses,
 		Pagination: pagination,
 	})
 }
@@ -497,7 +553,7 @@ func (h *ChatHandler) GetSessions(c *fiber.Ctx) error {
 // @Accept json
 // @Produce json
 // @Param id path string true "Session ID"
-// @Success 200 {object} domain.ApiResponse{data=domain.ChatSession}
+// @Success 200 {object} domain.ApiResponse{data=models.ChatSessionDetailResponse}
 // @Failure 400 {object} domain.ApiResponse
 // @Failure 404 {object} domain.ApiResponse
 // @Router /api/chat/sessions/{id} [get]
@@ -537,10 +593,13 @@ func (h *ChatHandler) GetSession(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert entity to clean response using mapper
+	response := mappers.ChatSessionToDetailResponse(session)
+
 	return c.JSON(domain.ApiResponse{
 		Success: true,
 		Message: "Session retrieved successfully",
-		Data:    session,
+		Data:    response,
 	})
 }
 

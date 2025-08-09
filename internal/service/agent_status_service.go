@@ -27,7 +27,7 @@ func NewAgentStatusService(
 // UpdateAgentHeartbeat updates agent's heartbeat and status
 func (s *AgentStatusService) UpdateAgentHeartbeat(ctx context.Context, agentID uuid.UUID, status string) error {
 	// Get agent details from database
-	agent, err := s.userRepo.GetByID(ctx, agentID)
+	agent, err := s.userRepo.GetByID(ctx, agentID.String())
 	if err != nil {
 		return fmt.Errorf("failed to get agent details: %w", err)
 	}

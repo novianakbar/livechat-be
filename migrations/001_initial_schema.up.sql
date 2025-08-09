@@ -2,33 +2,33 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create departments table
 CREATE TABLE departments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL
+    deleted_at BIGINT DEFAULT 0 -- For soft delete support (0 = not deleted, unix timestamp = deleted)
 );
 
 -- Create users table
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id VARCHAR(255) PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'agent')),
     is_active BOOLEAN DEFAULT true,
-    department_id UUID REFERENCES departments(id),
+    department_id VARCHAR(255) REFERENCES departments(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL
+    deleted_at BIGINT DEFAULT 0 -- For soft delete support (0 = not deleted, unix timestamp = deleted)
 );
 
 -- Create chat_users table (refactored from customers)
 CREATE TABLE chat_users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    browser_uuid UUID UNIQUE, -- UUID dari browser untuk anonymous users
+    id VARCHAR(255) PRIMARY KEY,
+    browser_uuid VARCHAR(255) UNIQUE, -- UUID dari browser untuk anonymous users
     oss_user_id VARCHAR(255), -- ID user dari sistem OSS
     email VARCHAR(255), -- Email untuk logged-in users
     is_anonymous BOOLEAN DEFAULT true,
@@ -36,7 +36,7 @@ CREATE TABLE chat_users (
     user_agent TEXT, -- Browser user agent
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL,
+    deleted_at BIGINT DEFAULT 0, -- For soft delete support (0 = not deleted, unix timestamp = deleted)
     -- Constraints
     CHECK (
         (is_anonymous = true AND browser_uuid IS NOT NULL) OR
@@ -46,10 +46,10 @@ CREATE TABLE chat_users (
 
 -- Create chat_sessions table
 CREATE TABLE chat_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    chat_user_id UUID NOT NULL REFERENCES chat_users(id),
-    agent_id UUID REFERENCES users(id),
-    department_id UUID REFERENCES departments(id),
+    id VARCHAR(255) PRIMARY KEY,
+    chat_user_id VARCHAR(255) NOT NULL REFERENCES chat_users(id),
+    agent_id VARCHAR(255) REFERENCES users(id),
+    department_id VARCHAR(255) REFERENCES departments(id),
     topic VARCHAR(255) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'closed')),
     priority VARCHAR(50) DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
@@ -57,13 +57,13 @@ CREATE TABLE chat_sessions (
     ended_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL
+    deleted_at BIGINT DEFAULT 0 -- For soft delete support (0 = not deleted, unix timestamp = deleted)
 );
 
 -- Create chat_session_contacts table
 CREATE TABLE chat_session_contacts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL REFERENCES chat_sessions(id),
+    id VARCHAR(255) PRIMARY KEY,
+    session_id VARCHAR(255) NOT NULL REFERENCES chat_sessions(id),
     contact_name VARCHAR(255) NOT NULL,
     contact_email VARCHAR(255) NOT NULL,
     contact_phone VARCHAR(50),
@@ -71,15 +71,15 @@ CREATE TABLE chat_session_contacts (
     company_name VARCHAR(255), -- Company name if applicable
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL,
+    deleted_at BIGINT DEFAULT 0, -- For soft delete support (0 = not deleted, unix timestamp = deleted)
     UNIQUE(session_id) -- One contact per session
 );
 
 -- Create chat_messages table
 CREATE TABLE chat_messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL REFERENCES chat_sessions(id),
-    sender_id UUID REFERENCES users(id),
+    id VARCHAR(255) PRIMARY KEY,
+    session_id VARCHAR(255) NOT NULL REFERENCES chat_sessions(id),
+    sender_id VARCHAR(255) REFERENCES users(id),
     sender_type VARCHAR(50) NOT NULL CHECK (sender_type IN ('customer', 'agent', 'system')),
     message TEXT NOT NULL,
     message_type VARCHAR(50) DEFAULT 'text' CHECK (message_type IN ('text', 'image', 'file', 'system')),
@@ -87,65 +87,65 @@ CREATE TABLE chat_messages (
     read_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL
+    deleted_at BIGINT DEFAULT 0 -- For soft delete support (0 = not deleted, unix timestamp = deleted)
 );
 
 -- Create chat_logs table
 CREATE TABLE chat_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL REFERENCES chat_sessions(id),
+    id VARCHAR(255) PRIMARY KEY,
+    session_id VARCHAR(255) NOT NULL REFERENCES chat_sessions(id),
     action VARCHAR(50) NOT NULL CHECK (action IN ('started', 'waiting', 'response', 'closed', 'transferred')),
     details TEXT,
-    user_id UUID REFERENCES users(id),
+    user_id VARCHAR(255) REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL
+    deleted_at BIGINT DEFAULT 0 -- For soft delete support (0 = not deleted, unix timestamp = deleted)
 );
 
 -- Create chat_tags table
 CREATE TABLE chat_tags (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL,
     color VARCHAR(7) DEFAULT '#007bff',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL
+    deleted_at BIGINT DEFAULT 0 -- For soft delete support (0 = not deleted, unix timestamp = deleted)
 );
 
 -- Create chat_session_tags table (many-to-many)
 CREATE TABLE chat_session_tags (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL REFERENCES chat_sessions(id),
-    tag_id UUID NOT NULL REFERENCES chat_tags(id),
+    id VARCHAR(255) PRIMARY KEY,
+    session_id VARCHAR(255) NOT NULL REFERENCES chat_sessions(id),
+    tag_id VARCHAR(255) NOT NULL REFERENCES chat_tags(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL,
+    deleted_at BIGINT DEFAULT 0, -- For soft delete support (0 = not deleted, unix timestamp = deleted)
     UNIQUE(session_id, tag_id)
 );
 
--- Create agent_status table (tracks login sessions)
+-- Create agent_status table (tracks login sessions) - includes updates from migration 003
 CREATE TABLE agent_status (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    agent_id UUID NOT NULL REFERENCES users(id),
+    id VARCHAR(255) PRIMARY KEY,
+    agent_id VARCHAR(255) NOT NULL REFERENCES users(id),
     status VARCHAR(50) NOT NULL CHECK (status IN ('logged_in', 'logged_out')),
     last_login_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL,
+    deleted_at BIGINT DEFAULT 0, -- For soft delete support (0 = not deleted, unix timestamp = deleted)
     UNIQUE(agent_id)
 );
 
 -- Create chat_analytics table
 CREATE TABLE chat_analytics (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id VARCHAR(255) PRIMARY KEY,
     date DATE NOT NULL,
     total_sessions INTEGER DEFAULT 0,
     completed_sessions INTEGER DEFAULT 0,
     average_response_time FLOAT DEFAULT 0,
     total_messages INTEGER DEFAULT 0,
-    department_id UUID REFERENCES departments(id),
-    agent_id UUID REFERENCES users(id),
+    department_id VARCHAR(255) REFERENCES departments(id),
+    agent_id VARCHAR(255) REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL
+    deleted_at BIGINT DEFAULT 0 -- For soft delete support (0 = not deleted, unix timestamp = deleted)
 );
 
 -- Create indexes for better performance
@@ -153,6 +153,8 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_department_id ON users(department_id);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_deleted_at ON users(deleted_at);
+
+CREATE INDEX idx_departments_deleted_at ON departments(deleted_at);
 
 CREATE INDEX idx_chat_users_browser_uuid ON chat_users(browser_uuid);
 CREATE INDEX idx_chat_users_oss_user_id ON chat_users(oss_user_id);
@@ -182,6 +184,8 @@ CREATE INDEX idx_chat_logs_session_id ON chat_logs(session_id);
 CREATE INDEX idx_chat_logs_action ON chat_logs(action);
 CREATE INDEX idx_chat_logs_created_at ON chat_logs(created_at);
 CREATE INDEX idx_chat_logs_deleted_at ON chat_logs(deleted_at);
+
+CREATE INDEX idx_chat_tags_deleted_at ON chat_tags(deleted_at);
 
 CREATE INDEX idx_chat_session_tags_session_id ON chat_session_tags(session_id);
 CREATE INDEX idx_chat_session_tags_tag_id ON chat_session_tags(tag_id);

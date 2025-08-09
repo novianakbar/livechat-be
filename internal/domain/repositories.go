@@ -19,14 +19,14 @@ type OSSChatUsecase interface {
 // UserRepository interface for user operations
 type UserRepository interface {
 	Create(ctx context.Context, user *User) error
-	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
+	GetByID(ctx context.Context, id string) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	Update(ctx context.Context, user *User) error
-	Delete(ctx context.Context, id uuid.UUID) error
-	GetAgentsByDepartment(ctx context.Context, departmentID uuid.UUID) ([]*User, error)
-	GetAvailableAgents(ctx context.Context, departmentID *uuid.UUID) ([]*User, error)
-	GetWithPagination(ctx context.Context, offset, limit int, role string, departmentID *uuid.UUID) ([]*User, error)
-	Count(ctx context.Context, role string, departmentID *uuid.UUID) (int, error)
+	Delete(ctx context.Context, id string) error
+	GetAgentsByDepartment(ctx context.Context, departmentID string) ([]*User, error)
+	GetAvailableAgents(ctx context.Context, departmentID *string) ([]*User, error)
+	GetWithPagination(ctx context.Context, offset, limit int, role string, departmentID *string) ([]*User, error)
+	Count(ctx context.Context, role string, departmentID *string) (int, error)
 	GetByRole(ctx context.Context, role string) ([]*User, error)
 	// Analytics methods
 	CountByRole(ctx context.Context, role string) (int64, error)

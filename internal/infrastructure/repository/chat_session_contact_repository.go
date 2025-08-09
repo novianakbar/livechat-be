@@ -23,7 +23,7 @@ func (r *chatSessionContactRepository) Create(ctx context.Context, contact *doma
 
 func (r *chatSessionContactRepository) GetBySessionID(ctx context.Context, sessionID uuid.UUID) (*domain.ChatSessionContact, error) {
 	var contact domain.ChatSessionContact
-	if err := r.db.WithContext(ctx).First(&contact, "session_id = ? AND deleted_at IS NULL", sessionID).Error; err != nil {
+	if err := r.db.WithContext(ctx).First(&contact, "session_id = ?", sessionID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -37,7 +37,5 @@ func (r *chatSessionContactRepository) Update(ctx context.Context, contact *doma
 }
 
 func (r *chatSessionContactRepository) Delete(ctx context.Context, sessionID uuid.UUID) error {
-	return r.db.WithContext(ctx).Model(&domain.ChatSessionContact{}).
-		Where("session_id = ?", sessionID).
-		Update("deleted_at", gorm.DeletedAt{}).Error
+	return r.db.WithContext(ctx).Delete(&domain.ChatSessionContact{}, "session_id = ?", sessionID).Error
 }

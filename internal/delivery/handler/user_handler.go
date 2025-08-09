@@ -4,6 +4,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/novianakbar/livechat-be/internal/domain"
+	"github.com/novianakbar/livechat-be/internal/mappers"
 	"github.com/novianakbar/livechat-be/internal/usecase"
 )
 
@@ -27,7 +28,7 @@ func NewUserHandler(userUsecase *usecase.UserUsecase) *UserHandler {
 // @Param limit query int false "Items per page"
 // @Param role query string false "User role filter"
 // @Param department_id query string false "Department ID filter"
-// @Success 200 {object} domain.PaginatedResponse{data=[]domain.User}
+// @Success 200 {object} domain.PaginatedResponse{data=[]models.UserResponse}
 // @Failure 500 {object} domain.ApiResponse
 // @Security BearerAuth
 // @Router /api/users [get]
@@ -60,6 +61,9 @@ func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert entities to clean response using mapper
+	userResponses := mappers.UsersToResponse(users)
+
 	totalPages := (total + limit - 1) / limit
 	pagination := domain.PaginationInfo{
 		Page:       page,
@@ -71,7 +75,7 @@ func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 	return c.JSON(domain.PaginatedResponse{
 		Success:    true,
 		Message:    "Users retrieved successfully",
-		Data:       users,
+		Data:       userResponses,
 		Pagination: pagination,
 	})
 }
@@ -82,7 +86,7 @@ func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 // @Tags Users
 // @Accept json
 // @Produce json
-// @Success 200 {object} domain.ApiResponse{data=[]domain.User}
+// @Success 200 {object} domain.ApiResponse{data=[]models.UserResponse}
 // @Failure 500 {object} domain.ApiResponse
 // @Security BearerAuth
 // @Router /api/users/agents [get]
@@ -96,10 +100,13 @@ func (h *UserHandler) GetAgents(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert entities to clean response using mapper
+	agentResponses := mappers.UsersToResponse(agents)
+
 	return c.JSON(domain.ApiResponse{
 		Success: true,
 		Message: "Agents retrieved successfully",
-		Data:    agents,
+		Data:    agentResponses,
 	})
 }
 
@@ -110,7 +117,7 @@ func (h *UserHandler) GetAgents(c *fiber.Ctx) error {
 // @Accept json
 // @Produce json
 // @Param id path string true "User ID"
-// @Success 200 {object} domain.ApiResponse{data=domain.User}
+// @Success 200 {object} domain.ApiResponse{data=models.UserResponse}
 // @Failure 400 {object} domain.ApiResponse
 // @Failure 404 {object} domain.ApiResponse
 // @Security BearerAuth
@@ -151,9 +158,12 @@ func (h *UserHandler) GetUser(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert entity to clean response using mapper
+	userResponse := mappers.UserToResponse(user)
+
 	return c.JSON(domain.ApiResponse{
 		Success: true,
 		Message: "User retrieved successfully",
-		Data:    user,
+		Data:    userResponse,
 	})
 }

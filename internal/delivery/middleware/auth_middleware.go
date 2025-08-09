@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"github.com/novianakbar/livechat-be/internal/domain"
 	"github.com/novianakbar/livechat-be/internal/usecase"
 )
@@ -96,7 +95,7 @@ func GetUserFromContext(c *fiber.Ctx) *domain.User {
 	return user
 }
 
-func GetUserIDFromContext(c *fiber.Ctx) *uuid.UUID {
+func GetUserIDFromContext(c *fiber.Ctx) *string {
 	user := GetUserFromContext(c)
 	if user == nil {
 		return nil

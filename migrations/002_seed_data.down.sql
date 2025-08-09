@@ -1,13 +1,37 @@
--- Delete seed data (in reverse order due to foreign key constraints)
--- Delete chat logs first
-DELETE FROM chat_logs
+-- Delete essential seed data (in reverse order due to foreign key constraints)
+-- Delete chat tags
+DELETE FROM chat_tags
 WHERE
     id IN (
-        'bb0e8400-e29b-41d4-a716-446655440001',
-        'bb0e8400-e29b-41d4-a716-446655440002',
-        'bb0e8400-e29b-41d4-a716-446655440003',
-        'bb0e8400-e29b-41d4-a716-446655440004',
-        'bb0e8400-e29b-41d4-a716-446655440005'
+        '550e8400-e29b-41d4-a716-446655440020',
+        '550e8400-e29b-41d4-a716-446655440021',
+        '550e8400-e29b-41d4-a716-446655440022',
+        '550e8400-e29b-41d4-a716-446655440023'
+    );
+
+-- Delete agent status
+DELETE FROM agent_status
+WHERE
+    id IN (
+        '550e8400-e29b-41d4-a716-446655440111',
+        '550e8400-e29b-41d4-a716-446655440112'
+    );
+
+-- Delete users
+DELETE FROM users
+WHERE
+    id IN (
+        '550e8400-e29b-41d4-a716-446655440010',
+        '550e8400-e29b-41d4-a716-446655440011',
+        '550e8400-e29b-41d4-a716-446655440012'
+    );
+
+-- Delete departments
+DELETE FROM departments
+WHERE
+    id IN (
+        '550e8400-e29b-41d4-a716-446655440001',
+        '550e8400-e29b-41d4-a716-446655440002'
     );
 
 -- Delete chat messages
