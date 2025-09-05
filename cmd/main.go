@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/novianakbar/livechat-be/internal/delivery/handler"
+	httpHandler "github.com/novianakbar/livechat-be/internal/delivery/http/handler"
 	"github.com/novianakbar/livechat-be/internal/delivery/middleware"
 	"github.com/novianakbar/livechat-be/internal/delivery/routes"
 	"github.com/novianakbar/livechat-be/internal/infrastructure/database"
@@ -47,11 +48,21 @@ func main() {
 	agentStatusRepo := repository.NewAgentStatusRepository(redisClient)
 	agentSessionRepo := repository.NewAgentSessionRepository(db)
 
+	// Ticket repositories
+	ticketRepo := repository.NewTicketRepository(db)
+	ticketCategoryRepo := repository.NewTicketCategoryRepository(db)
+	ticketCommentRepo := repository.NewTicketCommentRepository(db)
+	ticketHistoryRepo := repository.NewTicketHistoryRepository(db)
+	ticketSLARepo := repository.NewTicketSLARepository(db)
+	ticketEscalationRepo := repository.NewTicketEscalationRepository(db)
+	departmentRepo := repository.NewDepartmentRepository(db)
+
 	// Initialize use cases
 	authUsecase := usecase.NewAuthUsecase(userRepo, agentSessionRepo, jwtUtil)
 	chatUsecase := usecase.NewChatUsecase(sessionRepo, messageRepo, userRepo, logRepo, chatUserRepo, sessionContactRepo)
 	analyticsUsecase := usecase.NewAnalyticsUsecase(sessionRepo, messageRepo, userRepo)
 	userUsecase := usecase.NewUserUsecase(userRepo)
+	departmentUsecase := usecase.NewDepartmentUsecase(departmentRepo)
 
 	// Initialize email service
 	emailService := email.NewSendGridService(&cfg.Email)
@@ -62,6 +73,18 @@ func main() {
 	// Initialize agent status service
 	agentStatusService := service.NewAgentStatusService(agentStatusRepo, userRepo)
 
+	// Initialize ticket service
+	ticketService := service.NewTicketService(
+		ticketRepo,
+		ticketCategoryRepo,
+		ticketCommentRepo,
+		ticketHistoryRepo,
+		ticketSLARepo,
+		ticketEscalationRepo,
+		userRepo,
+		departmentRepo,
+	)
+
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authUsecase)
 	chatHandler := handler.NewChatHandler(chatUsecase, kafkaService)
@@ -69,6 +92,13 @@ func main() {
 	userHandler := handler.NewUserHandler(userUsecase)
 	emailHandler := handler.NewEmailHandler(emailService)
 	agentStatusHandler := handler.NewAgentStatusHandler(agentStatusService)
+	departmentHandler := handler.NewDepartmentHandler(departmentUsecase)
+
+	// Initialize ticket handlers
+	ticketHandler := httpHandler.NewTicketHandler(ticketService)
+	ticketCategoryHandler := httpHandler.NewTicketCategoryHandler(ticketCategoryRepo)
+	ticketStatsHandler := httpHandler.NewTicketStatsHandler(ticketService)
+	ticketBulkHandler := httpHandler.NewTicketBulkHandler(ticketService)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authUsecase)
@@ -101,8 +131,8 @@ func main() {
 		ExposeHeaders:    "Content-Length,Authorization",
 	}))
 
-	// Setup routes (tanpa wsHandler)
-	routes.SetupRoutes(app, authHandler, chatHandler, analyticsHandler, userHandler, emailHandler, agentStatusHandler, authMiddleware)
+	// Setup routes
+	routes.SetupRoutes(app, authHandler, chatHandler, analyticsHandler, userHandler, emailHandler, agentStatusHandler, departmentHandler, ticketHandler, ticketCategoryHandler, ticketStatsHandler, ticketBulkHandler, authMiddleware)
 
 	// Start server
 	serverAddr := cfg.Server.Host + ":" + cfg.Server.Port

@@ -3,6 +3,7 @@ package routes
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/novianakbar/livechat-be/internal/delivery/handler"
+	httpHandler "github.com/novianakbar/livechat-be/internal/delivery/http/handler"
 	"github.com/novianakbar/livechat-be/internal/delivery/middleware"
 )
 
@@ -14,6 +15,11 @@ func SetupRoutes(
 	userHandler *handler.UserHandler,
 	emailHandler *handler.EmailHandler,
 	agentStatusHandler *handler.AgentStatusHandler,
+	departmentHandler *handler.DepartmentHandler,
+	ticketHandler *httpHandler.TicketHandler,
+	ticketCategoryHandler *httpHandler.TicketCategoryHandler,
+	ticketStatsHandler *httpHandler.TicketStatsHandler,
+	ticketBulkHandler *httpHandler.TicketBulkHandler,
 	authMiddleware *middleware.AuthMiddleware,
 ) {
 	// Health check
@@ -115,4 +121,62 @@ func SetupRoutes(
 	agentStatus.Get("/department/:department_id", agentStatusHandler.GetOnlineAgentsByDepartment)
 	agentStatus.Get("/agent/:agent_id", agentStatusHandler.GetAgentStatus)
 	agentStatus.Get("/stats", agentStatusHandler.GetDepartmentStats)
+
+	// Ticket management routes
+	tickets := api.Group("/tickets")
+	tickets.Use(authMiddleware.RequireAuth())
+
+	// Ticket CRUD operations - Admin only for create, update
+	tickets.Post("/", authMiddleware.RequireAdmin(), ticketHandler.CreateTicket)
+	tickets.Get("/", ticketHandler.GetTicketList)
+	tickets.Get("/:id", ticketHandler.GetTicket)
+	tickets.Put("/:id", authMiddleware.RequireAdmin(), ticketHandler.UpdateTicket)
+	tickets.Get("/code/:code", ticketHandler.GetTicketByCode)
+
+	// Ticket actions
+	tickets.Post("/:id/assign", ticketHandler.AssignTicket)
+	tickets.Post("/:id/escalate", ticketHandler.EscalateTicket)
+	tickets.Post("/:id/comments", ticketHandler.AddComment)
+	tickets.Post("/:id/auto-assign", ticketBulkHandler.AutoAssignTicket)
+
+	// Agent and department specific tickets
+	tickets.Get("/agents/:agent_id", ticketHandler.GetAgentTickets)
+	tickets.Get("/departments/:department_id", ticketHandler.GetDepartmentTickets)
+
+	// Bulk operations - Admin only
+	tickets.Post("/bulk/assign", authMiddleware.RequireAdmin(), ticketBulkHandler.BulkAssignTickets)
+	tickets.Post("/bulk/update-status", authMiddleware.RequireAdmin(), ticketBulkHandler.BulkUpdateStatus)
+	tickets.Post("/bulk/close", authMiddleware.RequireAdmin(), ticketBulkHandler.BulkCloseTickets)
+
+	// Statistics & Analytics
+	tickets.Get("/stats/dashboard", ticketStatsHandler.GetDashboardStats)
+	tickets.Get("/stats/detailed", ticketStatsHandler.GetTicketStats)
+	tickets.Get("/stats/performance", ticketStatsHandler.GetPerformanceMetrics)
+	tickets.Get("/stats/sla-report", ticketStatsHandler.GetSLAReport)
+	tickets.Get("/stats/escalation", ticketStatsHandler.GetEscalationStats)
+
+	// Public ticket access (customer portal)
+	publicTickets := api.Group("/public/tickets")
+	publicTickets.Get("/:token", ticketHandler.GetTicketByAccessToken)
+
+	// Ticket categories
+	categories := api.Group("/ticket-categories")
+	categories.Use(authMiddleware.RequireAuth())
+	categories.Get("/", ticketCategoryHandler.GetCategories)
+	categories.Get("/:id", ticketCategoryHandler.GetCategory)
+
+	// Department management routes
+	departments := api.Group("/departments")
+	departments.Use(authMiddleware.RequireAuth())
+
+	// Basic CRUD operations - Admin only for CUD operations
+	departments.Post("/", authMiddleware.RequireAdmin(), departmentHandler.CreateDepartment)
+	departments.Get("/", departmentHandler.GetDepartments)
+	departments.Get("/:id", departmentHandler.GetDepartment)
+	departments.Put("/:id", authMiddleware.RequireAdmin(), departmentHandler.UpdateDepartment)
+	departments.Delete("/:id", authMiddleware.RequireAdmin(), departmentHandler.DeleteDepartment)
+
+	// Hierarchy and filtering routes
+	departments.Get("/parent/:parent_id", departmentHandler.GetDepartmentsByParent)
+	departments.Get("/level/:level", departmentHandler.GetDepartmentsBySupportLevel)
 }

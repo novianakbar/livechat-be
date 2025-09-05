@@ -1,26 +1,90 @@
--- Drop triggers for new tables
-DROP TRIGGER IF EXISTS update_chat_session_contacts_updated_at ON chat_session_contacts;
+-- Drop all indexes in reverse order
+DROP INDEX IF EXISTS idx_ticket_escalations_trigger_type;
 
-DROP TRIGGER IF EXISTS update_chat_users_updated_at ON chat_users;
+DROP INDEX IF EXISTS idx_ticket_escalations_escalated_by_id;
 
-DROP TRIGGER IF EXISTS update_chat_analytics_updated_at ON chat_analytics;
+DROP INDEX IF EXISTS idx_ticket_escalations_escalated_at;
 
-DROP TRIGGER IF EXISTS update_agent_status_updated_at ON agent_status;
+DROP INDEX IF EXISTS idx_ticket_escalations_to_level;
 
-DROP TRIGGER IF EXISTS update_chat_tags_updated_at ON chat_tags;
+DROP INDEX IF EXISTS idx_ticket_escalations_from_level;
 
-DROP TRIGGER IF EXISTS update_chat_messages_updated_at ON chat_messages;
+DROP INDEX IF EXISTS idx_ticket_escalations_ticket_id;
 
-DROP TRIGGER IF EXISTS update_chat_sessions_updated_at ON chat_sessions;
+DROP INDEX IF EXISTS idx_ticket_sla_resolution_breached;
 
-DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+DROP INDEX IF EXISTS idx_ticket_sla_first_response_breached;
 
-DROP TRIGGER IF EXISTS update_departments_updated_at ON departments;
+DROP INDEX IF EXISTS idx_ticket_sla_resolution_due;
 
--- Drop function
-DROP FUNCTION IF EXISTS update_updated_at_column ();
+DROP INDEX IF EXISTS idx_ticket_sla_first_response_due;
 
--- Drop indexes
+DROP INDEX IF EXISTS idx_ticket_sla_ticket_id;
+
+DROP INDEX IF EXISTS idx_ticket_history_created_at;
+
+DROP INDEX IF EXISTS idx_ticket_history_action;
+
+DROP INDEX IF EXISTS idx_ticket_history_user_id;
+
+DROP INDEX IF EXISTS idx_ticket_history_ticket_id;
+
+DROP INDEX IF EXISTS idx_ticket_attachments_deleted_at;
+
+DROP INDEX IF EXISTS idx_ticket_attachments_created_at;
+
+DROP INDEX IF EXISTS idx_ticket_attachments_uploaded_by;
+
+DROP INDEX IF EXISTS idx_ticket_attachments_ticket_id;
+
+DROP INDEX IF EXISTS idx_ticket_comments_deleted_at;
+
+DROP INDEX IF EXISTS idx_ticket_comments_created_at;
+
+DROP INDEX IF EXISTS idx_ticket_comments_is_from_customer;
+
+DROP INDEX IF EXISTS idx_ticket_comments_is_internal;
+
+DROP INDEX IF EXISTS idx_ticket_comments_user_id;
+
+DROP INDEX IF EXISTS idx_ticket_comments_ticket_id;
+
+DROP INDEX IF EXISTS idx_tickets_previous_department_id;
+
+DROP INDEX IF EXISTS idx_tickets_previous_assigned_to_id;
+
+DROP INDEX IF EXISTS idx_tickets_escalation_count;
+
+DROP INDEX IF EXISTS idx_tickets_current_level;
+
+DROP INDEX IF EXISTS idx_tickets_deleted_at;
+
+DROP INDEX IF EXISTS idx_tickets_created_at;
+
+DROP INDEX IF EXISTS idx_tickets_customer_email;
+
+DROP INDEX IF EXISTS idx_tickets_access_token;
+
+DROP INDEX IF EXISTS idx_tickets_created_by_id;
+
+DROP INDEX IF EXISTS idx_tickets_department_id;
+
+DROP INDEX IF EXISTS idx_tickets_assigned_to_id;
+
+DROP INDEX IF EXISTS idx_tickets_category_id;
+
+DROP INDEX IF EXISTS idx_tickets_priority;
+
+DROP INDEX IF EXISTS idx_tickets_status;
+
+DROP INDEX IF EXISTS idx_tickets_ticket_code;
+
+DROP INDEX IF EXISTS idx_ticket_categories_deleted_at;
+
+DROP INDEX IF EXISTS idx_ticket_categories_is_active;
+
+DROP INDEX IF EXISTS idx_ticket_categories_code;
+
 DROP INDEX IF EXISTS idx_chat_analytics_deleted_at;
 
 DROP INDEX IF EXISTS idx_chat_analytics_agent_id;
@@ -91,6 +155,12 @@ DROP INDEX IF EXISTS idx_chat_users_oss_user_id;
 
 DROP INDEX IF EXISTS idx_chat_users_browser_uuid;
 
+DROP INDEX IF EXISTS idx_departments_escalation_dept_id;
+
+DROP INDEX IF EXISTS idx_departments_parent_dept_id;
+
+DROP INDEX IF EXISTS idx_departments_support_level;
+
 DROP INDEX IF EXISTS idx_departments_deleted_at;
 
 DROP INDEX IF EXISTS idx_users_deleted_at;
@@ -101,7 +171,21 @@ DROP INDEX IF EXISTS idx_users_department_id;
 
 DROP INDEX IF EXISTS idx_users_email;
 
--- Drop tables
+-- Drop all tables in reverse dependency order
+DROP TABLE IF EXISTS ticket_escalations;
+
+DROP TABLE IF EXISTS ticket_sla;
+
+DROP TABLE IF EXISTS ticket_history;
+
+DROP TABLE IF EXISTS ticket_attachments;
+
+DROP TABLE IF EXISTS ticket_comments;
+
+DROP TABLE IF EXISTS tickets;
+
+DROP TABLE IF EXISTS ticket_categories;
+
 DROP TABLE IF EXISTS chat_analytics;
 
 DROP TABLE IF EXISTS agent_status;
@@ -123,3 +207,6 @@ DROP TABLE IF EXISTS chat_users;
 DROP TABLE IF EXISTS users;
 
 DROP TABLE IF EXISTS departments;
+
+-- Drop extension if no other tables need it
+DROP EXTENSION IF EXISTS "uuid-ossp";

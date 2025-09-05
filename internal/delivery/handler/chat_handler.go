@@ -156,7 +156,6 @@ func (h *ChatHandler) SendMessage(c *fiber.Ctx) error {
 		messageUUID, _ := uuid.Parse(message.ID)
 		sessionUUID, _ := uuid.Parse(message.SessionID)
 
-		// Create a clean message object without GORM associations for Kafka
 		kafkaMessage := struct {
 			ID          uuid.UUID  `json:"id"`
 			SessionID   uuid.UUID  `json:"session_id"`

@@ -43,8 +43,19 @@ func DepartmentToResponse(entity *entities.Department) *models.DepartmentRespons
 	}
 
 	response := &models.DepartmentResponse{
-		ID:        entity.ID,
-		Name:      entity.Name,
+		ID:       entity.ID,
+		Name:     entity.Name,
+		IsActive: entity.IsActive,
+
+		// Ticketing specific fields
+		CanHandleTickets:   entity.CanHandleTickets,
+		MaxTicketsPerAgent: entity.MaxTicketsPerAgent,
+
+		// Multi-Level Support Fields
+		SupportLevel:       entity.SupportLevel,
+		MaxEscalationLevel: entity.MaxEscalationLevel,
+		AutoAssignmentRule: entity.AutoAssignmentRule,
+
 		CreatedAt: FormatTime(entity.CreatedAt),
 		UpdatedAt: FormatTime(entity.UpdatedAt),
 	}
@@ -52,6 +63,26 @@ func DepartmentToResponse(entity *entities.Department) *models.DepartmentRespons
 	// Handle optional description
 	if entity.Description.Valid {
 		response.Description = entity.Description.String
+	}
+
+	// Handle optional parent department ID
+	if entity.ParentDeptID.Valid {
+		response.ParentDeptID = entity.ParentDeptID.String
+	}
+
+	// Handle optional escalation department ID
+	if entity.EscalationDeptID.Valid {
+		response.EscalationDeptID = entity.EscalationDeptID.String
+	}
+
+	// Handle nested parent department if loaded
+	if entity.ParentDept != nil {
+		response.ParentDept = DepartmentToResponse(entity.ParentDept)
+	}
+
+	// Handle nested escalation department if loaded
+	if entity.EscalationDept != nil {
+		response.EscalationDept = DepartmentToResponse(entity.EscalationDept)
 	}
 
 	return response
