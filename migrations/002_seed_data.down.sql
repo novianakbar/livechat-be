@@ -3,17 +3,6 @@
 -- Remove all seed data in reverse order
 -- ============================================
 -- Delete sample data first
-DELETE FROM ticket_comments
-WHERE
-    id = '550e8400-e29b-41d4-a716-446655440900';
-
-DELETE FROM ticket_sla
-WHERE
-    id = '550e8400-e29b-41d4-a716-446655440800';
-
-DELETE FROM tickets
-WHERE
-    id = '550e8400-e29b-41d4-a716-446655440700';
 
 DELETE FROM chat_sessions
 WHERE
@@ -24,20 +13,6 @@ WHERE
     id IN (
         '550e8400-e29b-41d4-a716-446655440500',
         '550e8400-e29b-41d4-a716-446655440501'
-    );
-
--- Delete ticket categories
-DELETE FROM ticket_categories
-WHERE
-    id IN (
-        '550e8400-e29b-41d4-a716-446655440030',
-        '550e8400-e29b-41d4-a716-446655440031',
-        '550e8400-e29b-41d4-a716-446655440032',
-        '550e8400-e29b-41d4-a716-446655440033',
-        '550e8400-e29b-41d4-a716-446655440034',
-        '550e8400-e29b-41d4-a716-446655440101',
-        '550e8400-e29b-41d4-a716-446655440102',
-        '550e8400-e29b-41d4-a716-446655440103'
     );
 
 -- Delete chat tags

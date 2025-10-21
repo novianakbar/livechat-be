@@ -99,7 +99,10 @@ func (r *chatSessionRepository) GetWaitingSessions(ctx context.Context) ([]*doma
 }
 
 func (r *chatSessionRepository) Update(ctx context.Context, session *domain.ChatSession) error {
-	return r.db.WithContext(ctx).Save(session).Error
+	return r.db.WithContext(ctx).
+		Model(&domain.ChatSession{}).
+		Where("id = ?", session.ID).
+		Updates(session).Error
 }
 
 func (r *chatSessionRepository) Close(ctx context.Context, sessionID uuid.UUID) error {

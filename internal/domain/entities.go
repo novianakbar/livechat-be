@@ -17,12 +17,3 @@ type ChatTag = entities.ChatTag
 type ChatSessionTag = entities.ChatSessionTag
 type AgentStatus = entities.AgentStatus
 type ChatAnalytics = entities.ChatAnalytics
-
-// Ticketing entities
-type Ticket = entities.Ticket
-type TicketCategory = entities.TicketCategory
-type TicketComment = entities.TicketComment
-type TicketAttachment = entities.TicketAttachment
-type TicketHistory = entities.TicketHistory
-type TicketSLA = entities.TicketSLA
-type TicketEscalation = entities.TicketEscalation

@@ -46,7 +46,10 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 }
 
 func (r *userRepository) Update(ctx context.Context, user *domain.User) error {
-	return r.db.WithContext(ctx).Save(user).Error
+	return r.db.WithContext(ctx).
+		Model(&domain.User{}).
+		Where("id = ?", user.ID).
+		Updates(user).Error
 }
 
 func (r *userRepository) Delete(ctx context.Context, id string) error {

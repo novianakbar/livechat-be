@@ -96,7 +96,10 @@ func (r *departmentRepository) GetBySupportLevel(ctx context.Context, supportLev
 }
 
 func (r *departmentRepository) Update(ctx context.Context, department *domain.Department) error {
-	return r.db.WithContext(ctx).Save(department).Error
+	return r.db.WithContext(ctx).
+		Model(&domain.Department{}).
+		Where("id = ?", department.ID).
+		Updates(department).Error
 }
 
 func (r *departmentRepository) Delete(ctx context.Context, id uuid.UUID) error {

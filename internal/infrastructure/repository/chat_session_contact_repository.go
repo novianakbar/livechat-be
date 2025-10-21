@@ -33,7 +33,10 @@ func (r *chatSessionContactRepository) GetBySessionID(ctx context.Context, sessi
 }
 
 func (r *chatSessionContactRepository) Update(ctx context.Context, contact *domain.ChatSessionContact) error {
-	return r.db.WithContext(ctx).Save(contact).Error
+	return r.db.WithContext(ctx).
+		Model(&domain.ChatSessionContact{}).
+		Where("id = ?", contact.ID).
+		Updates(contact).Error
 }
 
 func (r *chatSessionContactRepository) Delete(ctx context.Context, sessionID uuid.UUID) error {

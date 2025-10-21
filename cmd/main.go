@@ -8,7 +8,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/novianakbar/livechat-be/internal/delivery/handler"
-	httpHandler "github.com/novianakbar/livechat-be/internal/delivery/http/handler"
 	"github.com/novianakbar/livechat-be/internal/delivery/middleware"
 	"github.com/novianakbar/livechat-be/internal/delivery/routes"
 	"github.com/novianakbar/livechat-be/internal/infrastructure/database"
@@ -48,18 +47,14 @@ func main() {
 	agentStatusRepo := repository.NewAgentStatusRepository(redisClient)
 	agentSessionRepo := repository.NewAgentSessionRepository(db)
 
-	// Ticket repositories
-	ticketRepo := repository.NewTicketRepository(db)
-	ticketCategoryRepo := repository.NewTicketCategoryRepository(db)
-	ticketCommentRepo := repository.NewTicketCommentRepository(db)
-	ticketHistoryRepo := repository.NewTicketHistoryRepository(db)
-	ticketSLARepo := repository.NewTicketSLARepository(db)
-	ticketEscalationRepo := repository.NewTicketEscalationRepository(db)
 	departmentRepo := repository.NewDepartmentRepository(db)
+
+	// Initialize AI service
+	aiService := service.NewAIService(cfg)
 
 	// Initialize use cases
 	authUsecase := usecase.NewAuthUsecase(userRepo, agentSessionRepo, jwtUtil)
-	chatUsecase := usecase.NewChatUsecase(sessionRepo, messageRepo, userRepo, logRepo, chatUserRepo, sessionContactRepo)
+	chatUsecase := usecase.NewChatUsecase(sessionRepo, messageRepo, userRepo, logRepo, chatUserRepo, sessionContactRepo, aiService)
 	analyticsUsecase := usecase.NewAnalyticsUsecase(sessionRepo, messageRepo, userRepo)
 	userUsecase := usecase.NewUserUsecase(userRepo)
 	departmentUsecase := usecase.NewDepartmentUsecase(departmentRepo)
@@ -73,18 +68,6 @@ func main() {
 	// Initialize agent status service
 	agentStatusService := service.NewAgentStatusService(agentStatusRepo, userRepo)
 
-	// Initialize ticket service
-	ticketService := service.NewTicketService(
-		ticketRepo,
-		ticketCategoryRepo,
-		ticketCommentRepo,
-		ticketHistoryRepo,
-		ticketSLARepo,
-		ticketEscalationRepo,
-		userRepo,
-		departmentRepo,
-	)
-
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authUsecase)
 	chatHandler := handler.NewChatHandler(chatUsecase, kafkaService)
@@ -93,12 +76,7 @@ func main() {
 	emailHandler := handler.NewEmailHandler(emailService)
 	agentStatusHandler := handler.NewAgentStatusHandler(agentStatusService)
 	departmentHandler := handler.NewDepartmentHandler(departmentUsecase)
-
-	// Initialize ticket handlers
-	ticketHandler := httpHandler.NewTicketHandler(ticketService)
-	ticketCategoryHandler := httpHandler.NewTicketCategoryHandler(ticketCategoryRepo)
-	ticketStatsHandler := httpHandler.NewTicketStatsHandler(ticketService)
-	ticketBulkHandler := httpHandler.NewTicketBulkHandler(ticketService)
+	aiHandler := handler.NewAIHandler(chatUsecase, kafkaService)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authUsecase)
@@ -124,7 +102,7 @@ func main() {
 
 	// CORS middleware - Allow localhost:3000 for development
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.1:5173,https://oss.go.id",
+		AllowOrigins:     "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,https://oss.go.id",
 		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
 		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With",
 		AllowCredentials: true,
@@ -132,7 +110,7 @@ func main() {
 	}))
 
 	// Setup routes
-	routes.SetupRoutes(app, authHandler, chatHandler, analyticsHandler, userHandler, emailHandler, agentStatusHandler, departmentHandler, ticketHandler, ticketCategoryHandler, ticketStatsHandler, ticketBulkHandler, authMiddleware)
+	routes.SetupRoutes(app, authHandler, chatHandler, analyticsHandler, userHandler, emailHandler, agentStatusHandler, departmentHandler, aiHandler, authMiddleware)
 
 	// Start server
 	serverAddr := cfg.Server.Host + ":" + cfg.Server.Port

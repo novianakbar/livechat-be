@@ -78,6 +78,36 @@ func (k *KafkaService) PublishMessage(ctx context.Context, msg interface{}) erro
 // 	}
 // }
 
+// PublishTypingIndicator publishes a typing indicator message to Kafka.
+func (k *KafkaService) PublishTypingIndicator(ctx context.Context, typingMsg interface{}) error {
+	data, err := json.Marshal(typingMsg)
+	if err != nil {
+		return err
+	}
+
+	typingTopic := os.Getenv("KAFKA_TYPING_TOPIC")
+	if typingTopic == "" {
+		typingTopic = "typing-indicators"
+	}
+
+	// Mendapatkan broker dari environment
+	broker := os.Getenv("KAFKA_BROKER")
+	if broker == "" {
+		broker = "localhost:9092"
+	}
+
+	writer := kafka.NewWriter(kafka.WriterConfig{
+		Brokers:  []string{broker},
+		Topic:    typingTopic,
+		Balancer: &kafka.LeastBytes{},
+	})
+	defer writer.Close()
+
+	return writer.WriteMessages(ctx, kafka.Message{
+		Value: data,
+	})
+}
+
 // Close closes Kafka connections.
 func (k *KafkaService) Close() error {
 	// if err := k.Writer.Close(); err != nil {

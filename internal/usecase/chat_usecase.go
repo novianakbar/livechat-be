@@ -17,6 +17,7 @@ type ChatUsecase struct {
 	logRepo      domain.ChatLogRepository
 	chatUserRepo domain.ChatUserRepository           // Added for OSS support
 	contactRepo  domain.ChatSessionContactRepository // Added for OSS support
+	aiService    domain.AIService                    // Added for AI integration
 }
 
 func NewChatUsecase(
@@ -26,6 +27,7 @@ func NewChatUsecase(
 	logRepo domain.ChatLogRepository,
 	chatUserRepo domain.ChatUserRepository, // Added for OSS support
 	contactRepo domain.ChatSessionContactRepository, // Added for OSS support
+	aiService domain.AIService, // Added for AI integration
 ) *ChatUsecase {
 	return &ChatUsecase{
 		sessionRepo:  sessionRepo,
@@ -34,6 +36,7 @@ func NewChatUsecase(
 		logRepo:      logRepo,
 		chatUserRepo: chatUserRepo,
 		contactRepo:  contactRepo,
+		aiService:    aiService,
 	}
 }
 
@@ -126,6 +129,20 @@ func (uc *ChatUsecase) SendMessage(ctx context.Context, req *domain.SendMessageR
 		if err := uc.logRepo.Create(ctx, log); err != nil {
 			return nil, err
 		}
+	}
+
+	// If message is from customer and AI service is available, send to AI
+	if senderType == "customer" && uc.aiService != nil {
+		// Send to AI asynchronously to avoid blocking the response
+		go func(msg *domain.ChatMessage) {
+			// Use a new context since the original may be canceled after the HTTP response
+			newCtx := context.Background()
+			if err := uc.aiService.SendToAI(newCtx, msg); err != nil {
+				// Just log the error, don't affect the main flow
+				// In a real implementation, you might want to use a proper logger
+				// log.Printf("Error sending message to AI: %v", err)
+			}
+		}(message)
 	}
 
 	messageUUID, _ := uuid.Parse(message.ID)

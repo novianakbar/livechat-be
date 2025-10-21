@@ -18,6 +18,7 @@ type Config struct {
 	Email     EmailConfig
 	App       AppConfig
 	Kafka     KafkaConfig
+	AI        AIConfig
 }
 
 type DatabaseConfig struct {
@@ -66,6 +67,11 @@ type KafkaConfig struct {
 	Topic  string
 }
 
+type AIConfig struct {
+	Enabled    bool
+	WebhookURL string
+}
+
 func LoadConfig() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("Warning: .env file not found")
@@ -96,6 +102,9 @@ func LoadConfig() *Config {
 	if err != nil {
 		redisDB = 0
 	}
+
+	// Parse AI enabled config
+	aiEnabled, _ := strconv.ParseBool(getEnv("AI_ENABLED", "false"))
 
 	return &Config{
 		Database: DatabaseConfig{
@@ -135,6 +144,10 @@ func LoadConfig() *Config {
 		Kafka: KafkaConfig{
 			Broker: getEnv("KAFKA_BROKER", "localhost:9092"),
 			Topic:  getEnv("KAFKA_TOPIC", "chat-messages"),
+		},
+		AI: AIConfig{
+			Enabled:    aiEnabled,
+			WebhookURL: getEnv("AI_WEBHOOK_URL", ""),
 		},
 	}
 }

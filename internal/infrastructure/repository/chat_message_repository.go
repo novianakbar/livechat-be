@@ -50,7 +50,10 @@ func (r *chatMessageRepository) GetBySessionID(ctx context.Context, sessionID uu
 }
 
 func (r *chatMessageRepository) Update(ctx context.Context, message *domain.ChatMessage) error {
-	return r.db.WithContext(ctx).Save(message).Error
+	return r.db.WithContext(ctx).
+		Model(&domain.ChatMessage{}).
+		Where("id = ?", message.ID).
+		Updates(message).Error
 }
 
 func (r *chatMessageRepository) Delete(ctx context.Context, id uuid.UUID) error {
