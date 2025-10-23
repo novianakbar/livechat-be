@@ -307,6 +307,75 @@ func (h *ChatHandler) CloseSession(c *fiber.Ctx) error {
 	})
 }
 
+// RequestEscalation godoc
+// @Summary Request escalation to human agent
+// @Description Customer requests to escalate chat to human agent
+// @Tags Chat
+// @Accept json
+// @Produce json
+// @Param request body domain.CustomerEscalationRequest true "Escalation request"
+// @Success 200 {object} domain.ApiResponse
+// @Failure 400 {object} domain.ApiResponse
+// @Router /api/chat/request-escalation [post]
+func (h *ChatHandler) RequestEscalation(c *fiber.Ctx) error {
+	var req domain.CustomerEscalationRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Invalid request body",
+			Error:   err.Error(),
+		})
+	}
+
+	// Validate request
+	if req.SessionID == uuid.Nil {
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Session ID is required",
+			Error:   "validation failed",
+		})
+	}
+
+	// If customer accepts escalation
+	if req.Accept {
+		log.Printf("Customer accepted escalation for session %s", req.SessionID)
+
+		// Escalate to human agent
+		if err := h.chatUsecase.EscalateToHuman(c.Context(), req.SessionID, "Customer requested human agent"); err != nil {
+			log.Printf("Failed to escalate to human: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(domain.ApiResponse{
+				Success: false,
+				Message: "Failed to escalate to human agent",
+				Error:   err.Error(),
+			})
+		}
+
+		return c.JSON(domain.ApiResponse{
+			Success: true,
+			Message: "Successfully escalated to human agent",
+			Data: map[string]interface{}{
+				"escalated": true,
+				"message":   "Anda akan segera terhubung dengan agent kami",
+			},
+		})
+	}
+
+	// Customer declined escalation
+	log.Printf("Customer declined escalation for session %s", req.SessionID)
+
+	// Send a message to continue with AI
+	// You could store this preference in session metadata if needed
+
+	return c.JSON(domain.ApiResponse{
+		Success: true,
+		Message: "Escalation declined, continuing with AI",
+		Data: map[string]interface{}{
+			"escalated": false,
+			"message":   "Oke, saya akan terus membantu Anda",
+		},
+	})
+}
+
 // GetSessionMessages godoc
 // @Summary Get chat session messages
 // @Description Get all messages for a chat session
@@ -400,6 +469,35 @@ func (h *ChatHandler) GetActiveSessions(c *fiber.Ctx) error {
 	return c.JSON(domain.ApiResponse{
 		Success: true,
 		Message: "Active sessions retrieved successfully",
+		Data:    sessionResponses,
+	})
+}
+
+// GetQueuedSessions godoc
+// @Summary Get queued chat sessions
+// @Description Get all queued chat sessions (escalated from AI but no agent available)
+// @Tags Chat
+// @Produce json
+// @Success 200 {object} domain.ApiResponse{data=[]models.ChatSessionMinimalResponse}
+// @Failure 500 {object} domain.ApiResponse
+// @Security BearerAuth
+// @Router /api/chat/queued [get]
+func (h *ChatHandler) GetQueuedSessions(c *fiber.Ctx) error {
+	sessions, err := h.chatUsecase.GetQueuedSessions(c.Context())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(domain.ApiResponse{
+			Success: false,
+			Message: "Failed to get queued sessions",
+			Error:   err.Error(),
+		})
+	}
+
+	// Convert entities to clean response using mapper
+	sessionResponses := mappers.ChatSessionsToMinimalResponse(sessions)
+
+	return c.JSON(domain.ApiResponse{
+		Success: true,
+		Message: "Queued sessions retrieved successfully",
 		Data:    sessionResponses,
 	})
 }

@@ -45,6 +45,7 @@ func SetupRoutes(
 	ossChat.Post("/start", chatHandler.StartChat)
 	ossChat.Post("/contact", chatHandler.SetSessionContact)
 	ossChat.Post("/link-user", chatHandler.LinkOSSUser)
+	ossChat.Post("/request-escalation", chatHandler.RequestEscalation)
 	ossChat.Get("/history", chatHandler.GetChatHistory)
 	ossChat.Get("/session/:session_id", chatHandler.GetSession)
 
@@ -75,6 +76,7 @@ func SetupRoutes(
 	admin := chatManagement.Group("/admin")
 	admin.Use(authMiddleware.RequireAdmin())
 	admin.Get("/waiting", chatHandler.GetWaitingSessions)
+	admin.Get("/queued", chatHandler.GetQueuedSessions)
 	admin.Get("/active", chatHandler.GetActiveSessions)
 	admin.Post("/assign", chatHandler.AssignAgent)
 	admin.Post("/close", chatHandler.CloseSession)

@@ -98,6 +98,21 @@ func (r *chatSessionRepository) GetWaitingSessions(ctx context.Context) ([]*doma
 	return sessions, nil
 }
 
+func (r *chatSessionRepository) GetQueuedSessions(ctx context.Context) ([]*domain.ChatSession, error) {
+	var sessions []*domain.ChatSession
+	if err := r.db.WithContext(ctx).
+		Preload("ChatUser").
+		Preload("Agent").
+		Preload("Department").
+		Preload("Contact").
+		Where("status = ?", "queued").
+		Order("created_at ASC").
+		Find(&sessions).Error; err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}
+
 func (r *chatSessionRepository) Update(ctx context.Context, session *domain.ChatSession) error {
 	return r.db.WithContext(ctx).
 		Model(&domain.ChatSession{}).

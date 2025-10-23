@@ -278,6 +278,15 @@ func (uc *ChatUsecase) GetWaitingSessions(ctx context.Context) ([]*domain.ChatSe
 	return sessions, nil
 }
 
+func (uc *ChatUsecase) GetQueuedSessions(ctx context.Context) ([]*domain.ChatSession, error) {
+	sessions, err := uc.sessionRepo.GetQueuedSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return sessions, nil
+}
+
 func (uc *ChatUsecase) GetActiveSessions(ctx context.Context) ([]*domain.ChatSession, error) {
 	sessions, err := uc.sessionRepo.GetActiveSessions(ctx)
 	if err != nil {
@@ -400,6 +409,97 @@ func (uc *ChatUsecase) AutoAssignAgent(ctx context.Context, sessionID uuid.UUID)
 	}
 
 	if err := uc.logRepo.Create(ctx, log); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// EscalateToHuman escalates a chat session from AI to a human agent
+func (uc *ChatUsecase) EscalateToHuman(ctx context.Context, sessionID uuid.UUID, reason string) error {
+	// Get session
+	session, err := uc.sessionRepo.GetByID(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+
+	if session == nil {
+		return errors.New("chat session not found")
+	}
+
+	// Check if session is already assigned to human agent
+	if session.AgentID.Valid && session.AgentID.String != "" {
+		// Already has human agent, no need to escalate
+		return nil
+	}
+
+	// Try to auto-assign to an available agent
+	agents, err := uc.userRepo.GetAvailableAgents(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	// Update session status to queued if no agents available, or active if assigned
+	if len(agents) == 0 {
+		// No agents available, set to queued status
+		session.Status = "queued"
+		session.UpdatedAt = time.Now()
+	} else {
+		// Assign to first available agent
+		session.AgentID = sql.NullString{
+			String: agents[0].ID,
+			Valid:  true,
+		}
+		session.Status = "active"
+		session.UpdatedAt = time.Now()
+	}
+
+	if err := uc.sessionRepo.Update(ctx, session); err != nil {
+		return err
+	}
+
+	// Log escalation
+	uuidV7Escalate, _ := uuid.NewV7()
+	escalationDetails := "Chat escalated from AI to human agent"
+	if reason != "" {
+		escalationDetails += ": " + reason
+	}
+
+	log := &domain.ChatLog{
+		ID:        uuidV7Escalate.String(),
+		SessionID: sessionID.String(),
+		Action:    "escalated",
+		Details: sql.NullString{
+			String: escalationDetails,
+			Valid:  true,
+		},
+		UserID: func() sql.NullString {
+			if session.AgentID.Valid {
+				return sql.NullString{String: session.AgentID.String, Valid: true}
+			}
+			return sql.NullString{Valid: false}
+		}(),
+		CreatedAt: time.Now(),
+	}
+
+	if err := uc.logRepo.Create(ctx, log); err != nil {
+		return err
+	}
+
+	// Send system message to notify customer about escalation
+	uuidV7Msg, _ := uuid.NewV7()
+	systemMessage := &domain.ChatMessage{
+		ID:          uuidV7Msg.String(),
+		SessionID:   sessionID.String(),
+		SenderID:    sql.NullString{Valid: false},
+		SenderType:  "system",
+		Message:     "Percakapan Anda sedang dialihkan ke agent kami. Mohon tunggu sebentar...",
+		MessageType: "system",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := uc.messageRepo.Create(ctx, systemMessage); err != nil {
 		return err
 	}
 

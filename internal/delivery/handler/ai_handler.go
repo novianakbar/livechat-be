@@ -30,14 +30,14 @@ func NewAIHandler(chatUsecase *usecase.ChatUsecase, kafkaService *service.KafkaS
 // @Tags ai
 // @Accept json
 // @Produce json
-// @Param request body domain.SendMessageRequest true "AI response message"
+// @Param request body domain.AIResponseRequest true "AI response message"
 // @Success 200 {object} domain.ApiResponse{data=domain.SendMessageResponse}
 // @Failure 400 {object} domain.ApiResponse
 // @Failure 401 {object} domain.ApiResponse
 // @Security ApiKeyAuth
 // @Router /api/ai/response [post]
 func (h *AIHandler) ReceiveAIResponse(c *fiber.Ctx) error {
-	var req domain.SendMessageRequest
+	var req domain.AIResponseRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
 			Success: false,
@@ -74,8 +74,16 @@ func (h *AIHandler) ReceiveAIResponse(c *fiber.Ctx) error {
 		})
 	}
 
+	// Normal AI response flow
+	sendMessageReq := domain.SendMessageRequest{
+		SessionID:   req.SessionID,
+		Message:     req.Message,
+		MessageType: req.MessageType,
+		Attachments: req.Attachments,
+	}
+
 	// Send message with AI as sender
-	response, err := h.chatUsecase.SendMessage(c.Context(), &req, &userUUID, "ai")
+	response, err := h.chatUsecase.SendMessage(c.Context(), &sendMessageReq, &userUUID, "ai")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(domain.ApiResponse{
 			Success: false,
@@ -85,44 +93,50 @@ func (h *AIHandler) ReceiveAIResponse(c *fiber.Ctx) error {
 	}
 
 	// Kirim typing stop sebelum mempublikasikan pesan
-	// Ini untuk memastikan indikator typing berhenti saat pesan AI diterima
 	typingMessage := domain.TypingMessage{
 		Type:      "typing_indicator",
 		SessionID: req.SessionID,
 		UserID:    user.ID,
 		UserType:  "ai",
-		IsTyping:  false, // set false = typing stop
+		IsTyping:  false,
 		Timestamp: time.Now(),
 	}
 
-	// Kirim typing stop ke Kafka
 	if err := h.kafkaService.PublishTypingIndicator(c.Context(), typingMessage); err != nil {
-		// Hanya log error, jangan hentikan proses
 		log.Printf("Failed to send typing stop indicator for AI: %v", err)
-	} else {
-		log.Printf("Typing stop indicator sent for AI on session %s", req.SessionID)
 	}
 
-	// Get the message from the database to broadcast via Kafka, similar to ChatHandler.SendMessage
+	// Get the message from the database to broadcast via Kafka
 	message, err := h.chatUsecase.GetMessageByID(c.Context(), response.MessageID)
 
 	// Publish message to Kafka to deliver to the user
 	if h.kafkaService != nil && message != nil {
-		// Parse IDs for Kafka message
 		messageUUID, _ := uuid.Parse(message.ID)
 		sessionUUID, _ := uuid.Parse(message.SessionID)
 
+		// Prepare escalation offer message if needed
+		escalationMessage := ""
+		if req.OfferHumanEscalation {
+			escalationMessage = req.EscalationOfferMessage
+			if escalationMessage == "" {
+				escalationMessage = "Apakah Anda ingin terhubung dengan agent manusia kami?"
+			}
+			log.Printf("AI offering human escalation for session %s with message: %s", req.SessionID, escalationMessage)
+		}
+
 		kafkaMessage := struct {
-			ID          uuid.UUID  `json:"id"`
-			SessionID   uuid.UUID  `json:"session_id"`
-			SenderID    *uuid.UUID `json:"sender_id"`
-			SenderType  string     `json:"sender_type"`
-			Message     string     `json:"message"`
-			MessageType string     `json:"message_type"`
-			Attachments []string   `json:"attachments"`
-			ReadAt      *time.Time `json:"read_at"`
-			CreatedAt   time.Time  `json:"created_at"`
-			UpdatedAt   time.Time  `json:"updated_at"`
+			ID                     uuid.UUID  `json:"id"`
+			SessionID              uuid.UUID  `json:"session_id"`
+			SenderID               *uuid.UUID `json:"sender_id"`
+			SenderType             string     `json:"sender_type"`
+			Message                string     `json:"message"`
+			MessageType            string     `json:"message_type"`
+			Attachments            []string   `json:"attachments"`
+			ReadAt                 *time.Time `json:"read_at"`
+			CreatedAt              time.Time  `json:"created_at"`
+			UpdatedAt              time.Time  `json:"updated_at"`
+			ShowEscalationOffer    bool       `json:"show_escalation_offer"`
+			EscalationOfferMessage string     `json:"escalation_offer_message,omitempty"`
 		}{
 			ID:        messageUUID,
 			SessionID: sessionUUID,
@@ -144,17 +158,16 @@ func (h *AIHandler) ReceiveAIResponse(c *fiber.Ctx) error {
 				}
 				return nil
 			}(),
-			CreatedAt: message.CreatedAt,
-			UpdatedAt: message.UpdatedAt,
+			CreatedAt:              message.CreatedAt,
+			UpdatedAt:              message.UpdatedAt,
+			ShowEscalationOffer:    req.OfferHumanEscalation,
+			EscalationOfferMessage: escalationMessage,
 		}
 
-		log.Printf("Publishing AI response to Kafka: ID=%s, SessionID=%s, SenderType=%s, Message=%s",
-			kafkaMessage.ID, kafkaMessage.SessionID, kafkaMessage.SenderType, kafkaMessage.Message)
+		log.Printf("Publishing AI response to Kafka: ID=%s, SessionID=%s, SenderType=%s, ShowEscalation=%v",
+			kafkaMessage.ID, kafkaMessage.SessionID, kafkaMessage.SenderType, kafkaMessage.ShowEscalationOffer)
 		if err := h.kafkaService.PublishMessage(c.Context(), kafkaMessage); err != nil {
-			// Log error, tapi tetap lanjutkan
 			log.Printf("Failed to publish AI response to Kafka: %v", err)
-		} else {
-			log.Printf("Successfully published AI response to Kafka")
 		}
 	}
 

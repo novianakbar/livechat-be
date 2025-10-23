@@ -99,6 +99,7 @@ type ChatSessionRepository interface {
 	GetByAgentID(ctx context.Context, agentID uuid.UUID) ([]*ChatSession, error)
 	GetActiveSessions(ctx context.Context) ([]*ChatSession, error)
 	GetWaitingSessions(ctx context.Context) ([]*ChatSession, error)
+	GetQueuedSessions(ctx context.Context) ([]*ChatSession, error)
 	Update(ctx context.Context, session *ChatSession) error
 	Close(ctx context.Context, sessionID uuid.UUID) error
 	GetSessionsByStatus(ctx context.Context, status string) ([]*ChatSession, error)

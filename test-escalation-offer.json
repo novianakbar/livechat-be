@@ -1,0 +1,7 @@
+{
+  "session_id": "YOUR_SESSION_ID_HERE",
+  "message": "Berdasarkan pertanyaan Anda, saya pikir akan lebih baik jika Anda berbicara langsung dengan agent kami yang lebih berpengalaman.",
+  "message_type": "text",
+  "offer_human_escalation": true,
+  "escalation_offer_message": "Apakah Anda ingin saya hubungkan dengan agent manusia untuk penjelasan lebih detail?"
+}
